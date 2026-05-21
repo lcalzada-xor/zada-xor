@@ -1,7 +1,7 @@
 # --- Rust / Cargo ---
 /target
 **/*.rs.bk
-
+/comandos
 # --- IDEs & Editors ---
 # VS Code
 .vscode/*

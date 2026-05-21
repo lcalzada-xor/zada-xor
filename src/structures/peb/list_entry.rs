@@ -1,4 +1,4 @@
-use super::utils::*;
+use crate::structures::utils::*;
 
 // _LIST_ENTRY is identical across all Windows versions (Vista → Win11).
 // Only pointer width differs between architectures:

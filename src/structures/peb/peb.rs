@@ -1,5 +1,5 @@
+use crate::structures::utils::*;
 use super::offsets;
-use super::utils::*;
 use std::arch::asm;
 use std::fmt;
 

@@ -1,14 +1,17 @@
-use zada_xor::structures::ldr::PebLdrData;
-use zada_xor::structures::ldr_entry::LdrDataTableEntry;
-#[cfg(target_arch = "x86_64")]
-use zada_xor::structures::ldr_entry::offsets::x64_win10 as ldr_off;
-#[cfg(target_arch = "x86")]
-use zada_xor::structures::ldr_entry::offsets::x86_win10 as ldr_off;
-use zada_xor::structures::list_entry::ListEntry;
 use zada_xor::structures::pe::ExportTable;
-use zada_xor::structures::peb::Peb;
-use zada_xor::techniques::function_calling::api_hashing::*;
-use zada_xor::techniques::function_calling::dinamic_api_resolution::*;
+use zada_xor::structures::peb::ldr::PebLdrData;
+use zada_xor::structures::peb::ldr_entry::LdrDataTableEntry;
+#[cfg(target_arch = "x86_64")]
+use zada_xor::structures::peb::ldr_entry::offsets::x64_win10 as ldr_off;
+#[cfg(target_arch = "x86")]
+use zada_xor::structures::peb::ldr_entry::offsets::x86_win10 as ldr_off;
+use zada_xor::structures::peb::list_entry::ListEntry;
+use zada_xor::structures::peb::peb::Peb;
+use zada_xor::techniques::evasion::api_hashing::*;
+use zada_xor::techniques::evasion::dinamic_api_resolution::*;
+use zada_xor::techniques::evasion::execution::direct_syscall::*;
+use zada_xor::techniques::evasion::execution::indirect_syscall::*;
+use zada_xor::techniques::evasion::execution::normal_call::*;
 
 fn main() {
     let peb = Peb::new().expect("failed to locate PEB");
@@ -50,12 +53,12 @@ fn main() {
         #[cfg(target_arch = "x86_64")]
         let head = ListEntry::new(
             ldr.ptr
-                .add(zada_xor::structures::ldr::offsets::x64::IN_LOAD_ORDER_MODULE_LIST),
+                .add(zada_xor::structures::peb::ldr::offsets::x64::IN_LOAD_ORDER_MODULE_LIST),
         );
         #[cfg(target_arch = "x86")]
         let head = ListEntry::new(
             ldr.ptr
-                .add(zada_xor::structures::ldr::offsets::x86::IN_LOAD_ORDER_MODULE_LIST),
+                .add(zada_xor::structures::peb::ldr::offsets::x86::IN_LOAD_ORDER_MODULE_LIST),
         );
 
         println!("\n--- InLoadOrderModuleList ({} entries) ---", head.len());
@@ -112,10 +115,57 @@ fn main() {
         println!("{}", x);
     }
     let hash = 0x2759addf;
-    let NtAllocateVirtualMemory_with_hash =
+    let nt_allocate_virtual_memory_with_hash =
         get_export_by_name_hash(unsafe { get_ntdll_base() }, hash);
-    match NtAllocateVirtualMemory_with_hash {
-        Ok(address) => println!("xxxx found at RVA: {:#x}", address as usize),
-        Err(_) => println!("xxxx not found"),
+    match nt_allocate_virtual_memory_with_hash {
+        Ok(address) => println!(
+            "nt_allocate_virtual_memory found at RVA: {:#x}",
+            address as usize
+        ),
+        Err(_) => println!("nt_allocate_virtual_memory not found"),
+    }
+    let nt_delay_execution_ssn: u32 = 0x0034;
+
+    let segundos = 3;
+    let mut delay_interval: i64 = -(segundos * 10_000_000);
+
+    println!("Iniciando la congelacion de {} segundos.", segundos);
+
+    unsafe {
+        let status = direct_syscall_6(
+            nt_delay_execution_ssn,
+            0,
+            &mut delay_interval as *mut i64 as usize,
+            0,
+            0,
+            0,
+            0,
+        );
+
+        if status == 0 {
+            println!("bien");
+        } else {
+            println!("mal, status: 0x{:X}", status);
+        }
+    }
+    println!("Iniciando la congelacion de {} segundos.", segundos);
+
+    unsafe {
+        let status = indirect_syscall_6(
+            unique_hash("NtDelayExecution"),
+            nt_delay_execution_ssn,
+            0,
+            &mut delay_interval as *mut i64 as usize,
+            0,
+            0,
+            0,
+            0,
+        );
+
+        match status {
+            Ok(0) => println!("bien"),
+            Ok(val) => println!("mal, status: 0x{:X}", val),
+            Err(err) => println!("Error al ejecutar la syscall: {}", err),
+        }
     }
 }

@@ -1,4 +1,4 @@
-use super::utils::*;
+use crate::structures::utils::*;
 
 // _LDR_DATA_TABLE_ENTRY offsets by version and architecture.
 //
