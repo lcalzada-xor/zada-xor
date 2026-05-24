@@ -1,5 +1,5 @@
 use crate::structures::pe::constants::*;
-use crate::structures::utils::{read_u16, read_u32};
+use crate::utils::{read_u16, read_u32};
 
 /// Holds verified offset information for a parsed PE image.
 pub struct PeHeaderInfo {

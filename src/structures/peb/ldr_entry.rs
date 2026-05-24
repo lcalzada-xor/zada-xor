@@ -1,5 +1,4 @@
-use crate::structures::utils::*;
-
+use crate::utils::*;
 // _LDR_DATA_TABLE_ENTRY offsets by version and architecture.
 //
 // Sources (Vergilius Project):

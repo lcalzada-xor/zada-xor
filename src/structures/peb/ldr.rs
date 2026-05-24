@@ -1,4 +1,4 @@
-use crate::structures::utils::*;
+use crate::utils::*;
 
 pub mod offsets {
     /// x64: _PEB_LDR_DATA field offsets (total size 0x58)

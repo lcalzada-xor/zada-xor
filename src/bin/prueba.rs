@@ -7,6 +7,7 @@ use zada_xor::structures::peb::ldr_entry::offsets::x64_win10 as ldr_off;
 use zada_xor::structures::peb::ldr_entry::offsets::x86_win10 as ldr_off;
 use zada_xor::structures::peb::list_entry::ListEntry;
 use zada_xor::structures::peb::peb::Peb;
+use zada_xor::techniques::discovery::process::*;
 use zada_xor::techniques::evasion::api_hashing::*;
 use zada_xor::techniques::evasion::dinamic_api_resolution::*;
 use zada_xor::techniques::evasion::execution::direct_syscall::*;
@@ -97,6 +98,38 @@ fn main() {
                 }
             }
         }
+        println!("\n--- Process Discovery ---");
+        match process_discovery() {
+            Ok(processes) => {
+                println!("┌──────────┬──────────┬──────────┬──────────┬──────────┬────────────────┬─────────────────────────────────────┐");
+                println!(
+                    "│ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^14} │ {:<35} │",
+                    "PID", "PPID", "Session", "Threads", "Handles", "Working Set", "Process Name"
+                );
+                println!("├──────────┼──────────┼──────────┼──────────┼──────────┼────────────────┼─────────────────────────────────────┤");
+                for proc in &processes {
+                    let formatted_ws = format_bytes(proc.working_set_size);
+                    let name = if proc.name.len() > 35 {
+                        format!("{}...", &proc.name[..32])
+                    } else {
+                        proc.name.clone()
+                    };
+                    println!(
+                        "│ {:<8} │ {:<8} │ {:<8} │ {:<8} │ {:<8} │ {:>14} │ {:<35} │",
+                        proc.pid,
+                        proc.parent_pid,
+                        proc.session_id,
+                        proc.threads_count,
+                        proc.handle_count,
+                        formatted_ws,
+                        name
+                    );
+                }
+                println!("└──────────┴──────────┴──────────┴──────────┴──────────┴────────────────┴─────────────────────────────────────┘");
+            }
+            Err(e) => println!("Error al ejecutar la syscall: {}", e),
+        }
+        println!("--- Fin del discovery ---\n");
 
         println!("\n--- GetNtdllBase ---");
         println!("ntdll base: {:#x}", get_ntdll_base() as usize);
@@ -114,6 +147,12 @@ fn main() {
         println!("{}", String::from_utf8_lossy(&dst));
         println!("{}", x);
     }
+
+    println!(
+        "\nHash NtQuerySystemInformation: {:#x}",
+        unique_hash("NtQuerySystemInformation")
+    );
+
     let hash = 0x2759addf;
     let nt_allocate_virtual_memory_with_hash =
         get_export_by_name_hash(unsafe { get_ntdll_base() }, hash);
@@ -168,4 +207,18 @@ fn main() {
             Err(err) => println!("Error al ejecutar la syscall: {}", err),
         }
     }
+}
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let units = ["B", "KB", "MB", "GB"];
+    let mut size = bytes as f64;
+    let mut unit_idx = 0;
+    while size >= 1024.0 && unit_idx < units.len() - 1 {
+        size /= 1024.0;
+        unit_idx += 1;
+    }
+    format!("{:.2} {}", size, units[unit_idx])
 }

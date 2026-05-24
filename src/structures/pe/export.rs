@@ -1,7 +1,7 @@
 use crate::structures::pe::constants::*;
 use crate::structures::pe::headers::PeHeaderInfo;
 use crate::structures::pe::helpers::read_cstr;
-use crate::structures::utils::{read_u16, read_u32};
+use crate::utils::{read_u16, read_u32};
 
 pub struct ExportEntry {
     pub ordinal: u32,
