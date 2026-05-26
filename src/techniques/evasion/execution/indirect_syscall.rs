@@ -1,5 +1,6 @@
 use crate::techniques::evasion::dinamic_api_resolution::{get_export_by_name_hash, get_ntdll_base};
 
+#[cfg(target_arch = "x86_64")] // las indirect syscall solo las implemento para x64 dado que para x86 en un entorno wow64 renta hacer heavens gate y pasar por las syscalls de nt64
 pub unsafe fn indirect_syscall_6(
     api_hash: u32,
     sys_number: u32,
@@ -12,21 +13,28 @@ pub unsafe fn indirect_syscall_6(
 ) -> Result<i32, String> {
     let mut status: i32;
     use std::arch::asm;
-    let address = unsafe { get_export_by_name_hash(get_ntdll_base(), api_hash) };
-    match address {
-        Ok(address) => address,
-        Err(_) => return Err(String::from("Api not found")),
+
+    let base = unsafe { get_ntdll_base() };
+    if base.is_null() {
+        return Err(String::from("Failed to locate NTDLL base address"));
+    }
+
+    let address_api = match get_export_by_name_hash(base, api_hash) {
+        Ok(addr) => addr,
+        Err(e) => return Err(format!("Api with hash {:#08x} not found: {}", api_hash, e)),
     };
-    let syscall_address = unsafe { find_syscall_address(address.unwrap()) };
-    match syscall_address {
-        Some(address) => address,
-        None => return Err(String::from("Syscall not found on api")),
+
+    let syscall_address = match unsafe { find_syscall_address(address_api) } {
+        Some(addr) => addr,
+        None => {
+            return Err(String::from(
+                "Syscall instruction not found in the resolved API function",
+            ));
+        }
     };
+
     #[cfg(debug_assertions)]
-    println!(
-        "Calling syscall with address: {:#x}",
-        syscall_address.unwrap()
-    );
+    println!("Calling syscall with address: {:#x}", syscall_address);
 
     unsafe {
         asm!(
@@ -41,7 +49,7 @@ pub unsafe fn indirect_syscall_6(
             in("rdx") a2,        
             in("r8")  a3,        
             in("r9")  a4,        
-            in("rsi") syscall_address.unwrap(), 
+            in("rsi") syscall_address, 
             a5_reg = in(reg) a5,
             a6_reg = in(reg) a6,
             lateout("eax") status,
@@ -50,7 +58,11 @@ pub unsafe fn indirect_syscall_6(
     Result::Ok(status)
 }
 
+#[cfg(target_arch = "x86_64")]
 unsafe fn find_syscall_address(function_address: *const u8) -> Option<usize> {
+    if function_address.is_null() {
+        return None;
+    }
     let mut ptr = function_address;
 
     for _ in 0..64 {

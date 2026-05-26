@@ -35,7 +35,7 @@ pub unsafe fn direct_syscall_6(
     status
 }
 
-#[cfg(target_arch = "x86")]
+#[cfg(target_arch = "x86")] // no funcionara para un ordenador de 64 bits, solo para procesadores de 32 bits dado que se encuentra en un entorno de emulacion wow64
 pub unsafe fn direct_syscall_6(
     sys_number: u32,
     a1: usize,

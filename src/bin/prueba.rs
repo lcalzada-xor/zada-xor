@@ -10,9 +10,10 @@ use zada_xor::structures::peb::peb::Peb;
 use zada_xor::techniques::discovery::process::*;
 use zada_xor::techniques::evasion::api_hashing::*;
 use zada_xor::techniques::evasion::dinamic_api_resolution::*;
+use zada_xor::techniques::evasion::execution::dinamic_ssn::*;
 use zada_xor::techniques::evasion::execution::direct_syscall::*;
+use zada_xor::techniques::evasion::execution::dynamic_call::*;
 use zada_xor::techniques::evasion::execution::indirect_syscall::*;
-use zada_xor::techniques::evasion::execution::normal_call::*;
 
 fn main() {
     let peb = Peb::new().expect("failed to locate PEB");
@@ -98,15 +99,35 @@ fn main() {
                 }
             }
         }
+
+        let segundos = 3;
+        println!(
+            "Iniciando la congelacion de {} segundos mediante dynamic_stdcall_by_name.",
+            segundos
+        );
+
+        let mut delay_interval: i64 = -(segundos * 10_000_000);
+        match dynamic_stdcall_by_name(
+            "NtDelayExecution",
+            &[0, &mut delay_interval as *mut i64 as usize],
+        ) {
+            Ok(_) => println!("Congelacion completada con exito."),
+            Err(e) => println!("Error al congelar: {}", e),
+        }
+
         println!("\n--- Process Discovery ---");
         match process_discovery() {
             Ok(processes) => {
-                println!("┌──────────┬──────────┬──────────┬──────────┬──────────┬────────────────┬─────────────────────────────────────┐");
+                println!(
+                    "┌──────────┬──────────┬──────────┬──────────┬──────────┬────────────────┬─────────────────────────────────────┐"
+                );
                 println!(
                     "│ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^14} │ {:<35} │",
                     "PID", "PPID", "Session", "Threads", "Handles", "Working Set", "Process Name"
                 );
-                println!("├──────────┼──────────┼──────────┼──────────┼──────────┼────────────────┼─────────────────────────────────────┤");
+                println!(
+                    "├──────────┼──────────┼──────────┼──────────┼──────────┼────────────────┼─────────────────────────────────────┤"
+                );
                 for proc in &processes {
                     let formatted_ws = format_bytes(proc.working_set_size);
                     let name = if proc.name.len() > 35 {
@@ -125,7 +146,9 @@ fn main() {
                         name
                     );
                 }
-                println!("└──────────┴──────────┴──────────┴──────────┴──────────┴────────────────┴─────────────────────────────────────┘");
+                println!(
+                    "└──────────┴──────────┴──────────┴──────────┴──────────┴────────────────┴─────────────────────────────────────┘"
+                );
             }
             Err(e) => println!("Error al ejecutar la syscall: {}", e),
         }
@@ -140,12 +163,10 @@ fn main() {
         let src = b"hola\0";
         let mut dst = [0u8; 10];
         let args = [dst.as_mut_ptr() as usize, src.as_ptr() as usize];
-        let x = call_cdecl(
-            get_export_by_name(get_ntdll_base(), "strcpy").unwrap(),
-            &args,
-        );
-        println!("{}", String::from_utf8_lossy(&dst));
-        println!("{}", x);
+        match dynamic_cdecl_by_name("strcpy", &args) {
+            Ok(_) => println!("{}", String::from_utf8_lossy(&dst)),
+            Err(e) => println!("Error al ejecutar strcpy: {}", e),
+        }
     }
 
     println!(
@@ -165,11 +186,9 @@ fn main() {
     }
     let nt_delay_execution_ssn: u32 = 0x0034;
 
-    let segundos = 3;
+    let segundos = 10;
     let mut delay_interval: i64 = -(segundos * 10_000_000);
-
-    println!("Iniciando la congelacion de {} segundos.", segundos);
-
+    println!("Iniciando la congelacion de {} segundos directa.", segundos);
     unsafe {
         let status = direct_syscall_6(
             nt_delay_execution_ssn,
@@ -187,12 +206,23 @@ fn main() {
             println!("mal, status: 0x{:X}", status);
         }
     }
-    println!("Iniciando la congelacion de {} segundos.", segundos);
+
+    println!("\n--- Get Dynamic SSN ---");
+    let ssn_code = match get_dinamic_ssn(unique_hash("NtDelayExecution")) {
+        Ok(ssn) => ssn,
+        Err(e) => panic!("Error al obtener el SSN: {}", e),
+    };
+    println!("SSN: {:#x}", ssn_code);
+
+    println!(
+        "Iniciando la congelacion de {} segundos indirecta.",
+        segundos
+    );
 
     unsafe {
         let status = indirect_syscall_6(
             unique_hash("NtDelayExecution"),
-            nt_delay_execution_ssn,
+            ssn_code,
             0,
             &mut delay_interval as *mut i64 as usize,
             0,
