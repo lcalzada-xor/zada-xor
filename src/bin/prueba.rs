@@ -1,3 +1,6 @@
+use zada_xor::cipher::communication::SecureDataPacket;
+use zada_xor::cipher::handshake::*;
+use zada_xor::cipher::keys::Identity;
 use zada_xor::structures::pe::ExportTable;
 use zada_xor::structures::peb::ldr::PebLdrData;
 use zada_xor::structures::peb::ldr_entry::LdrDataTableEntry;
@@ -16,6 +19,50 @@ use zada_xor::techniques::evasion::execution::dynamic_call::*;
 use zada_xor::techniques::evasion::execution::indirect_syscall::*;
 
 fn main() {
+    let identity_server = Identity::new();
+    let identity_client = Identity::new();
+
+    let (client_handshake_packet, simetric_key_for_client) = SecureClientHandshakePacket::new(
+        identity_server.public_key.to_bytes(),
+        identity_client.public_key.to_bytes(),
+    );
+
+    println!("Simetric key for client: {:?}", simetric_key_for_client.key);
+    println!("------------------------------------------");
+    let (symmetric_key_for_server, _trash_pub_key_server) =
+        match client_handshake_packet.process_packet(&identity_server.private_key) {
+            Ok((symmetric_key, pub_key)) => (symmetric_key, pub_key),
+            Err(e) => {
+                println!("Error: {}", e);
+                return;
+            }
+        };
+    println!(
+        "Simetric key for server: {:?}",
+        symmetric_key_for_server.key
+    );
+    println!("----------------------------------");
+    println!("Simulacion de envio de paquetes");
+    let data = SecureDataPacket::cipher(
+        "Hola esto es un mensaje que va a ir cifrado".as_bytes(),
+        &simetric_key_for_client,
+    );
+    println!("Mensaje cifrado : {:#?}", data.payload);
+
+    let data_received = SecureDataPacket::decipher(&data.payload, &simetric_key_for_client)
+        .expect("Error al descifrar el mensaje");
+    println!("Mensaje descifrado : {}", String::from_utf8_lossy(&data_received));
+    println!("----------------------------------");
+
+    println!("Simulacion de envio de paquetes alterados");
+
+    let mut data_alterado = data.payload;
+    data_alterado[0] = 0;
+    let data_received_alterado =
+        SecureDataPacket::decipher(&data_alterado, &simetric_key_for_client);
+    println!("Mensaje descifrado : {:#?}", data_received_alterado);
+    println!("----------------------------------");
+
     let peb = Peb::new().expect("failed to locate PEB");
 
     println!("{:?}", peb);

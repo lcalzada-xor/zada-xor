@@ -4,6 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+x25519-dalek = { version = "2.0.1", features = ["static_secrets"] }
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+chacha20poly1305 = "0.10"
 
-
-
+[profile.release]
+opt-level = "z"     # Optimiza agresivamente para reducir el tamaño (puedes probar "s" también)
+lto = true          # Habilita Link-Time Optimization. Analiza todo el programa para eliminar código muerto entre crates
+codegen-units = 1   # Reduce las unidades de generación a 1. Permite a LLVM optimizar de forma más global (a costa de compilar más lento)
+panic = "abort"     # Elimina la lógica de "unwinding" (desenrollado) para pánicos. Ahorra muchísimo espacio si no necesitas capturar pánicos
+strip = true        # Elimina automáticamente todos los símbolos e información de debug del binario resultante
