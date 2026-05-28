@@ -39,3 +39,5 @@ Thumbs.db
 *.dll
 *.so
 *.dylib
+
+/output.txt
