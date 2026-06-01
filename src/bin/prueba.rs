@@ -1,6 +1,8 @@
 use zada_xor::cipher::communication::SecureDataPacket;
 use zada_xor::cipher::handshake::*;
 use zada_xor::cipher::keys::Identity;
+use zada_xor::memory::process::open_process::*;
+use zada_xor::memory::process::query_virtual_mem::*;
 use zada_xor::structures::pe::ExportTable;
 use zada_xor::structures::peb::ldr::PebLdrData;
 use zada_xor::structures::peb::ldr_entry::LdrDataTableEntry;
@@ -26,6 +28,31 @@ fn main() {
         identity_server.public_key.to_bytes(),
         identity_client.public_key.to_bytes(),
     );
+    let self_pid = std::process::id();
+    println!("self_pid: {}", self_pid);
+    println!(
+        "NtQueryVirtualMemory: {:#x}",
+        unique_hash("NtQueryVirtualMemory")
+    );
+    let handle = match open_process(self_pid) {
+        Ok(handl) => handl,
+        Err(e) => {
+            println!("Error: {}", e);
+            return;
+        }
+    };
+    println!("handle: {:#?}", handle);
+    escanear_memoria_proceso(handle);
+
+    let handle2 = match open_process(4752) {
+        Ok(handl) => handl,
+        Err(e) => {
+            println!("Error: {}", e);
+            return;
+        }
+    };
+    println!("handle2: {:#?}", handle2);
+    escanear_memoria_proceso(handle2);
 
     println!("Simetric key for client: {:?}", simetric_key_for_client.key);
     println!("------------------------------------------");
@@ -51,7 +78,10 @@ fn main() {
 
     let data_received = SecureDataPacket::decipher(&data.payload, &simetric_key_for_client)
         .expect("Error al descifrar el mensaje");
-    println!("Mensaje descifrado : {}", String::from_utf8_lossy(&data_received));
+    println!(
+        "Mensaje descifrado : {}",
+        String::from_utf8_lossy(&data_received)
+    );
     println!("----------------------------------");
 
     println!("Simulacion de envio de paquetes alterados");
