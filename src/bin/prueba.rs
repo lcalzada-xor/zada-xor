@@ -1,8 +1,12 @@
 use zada_xor::cipher::communication::SecureDataPacket;
 use zada_xor::cipher::handshake::*;
 use zada_xor::cipher::keys::Identity;
+use zada_xor::memory::process::close_process::*;
 use zada_xor::memory::process::open_process::*;
+use zada_xor::memory::process::protect_virtual_mem::*;
 use zada_xor::memory::process::query_virtual_mem::*;
+use zada_xor::memory::process::read_process_mem::nt_read_virtual_memory;
+use zada_xor::memory::process::write_process_mem::nt_write_virtual_memory;
 use zada_xor::structures::pe::ExportTable;
 use zada_xor::structures::peb::ldr::PebLdrData;
 use zada_xor::structures::peb::ldr_entry::LdrDataTableEntry;
@@ -30,11 +34,14 @@ fn main() {
     );
     let self_pid = std::process::id();
     println!("self_pid: {}", self_pid);
-    println!(
-        "NtQueryVirtualMemory: {:#x}",
-        unique_hash("NtQueryVirtualMemory")
-    );
-    let handle = match open_process(self_pid) {
+    println!("NtClose: {:#x}", unique_hash("NtClose"));
+    let handle = match open_process(
+        self_pid,
+        DESIRED_ACCESS::PROCESS_VM_READ
+            | DESIRED_ACCESS::PROCESS_VM_WRITE
+            | DESIRED_ACCESS::PROCESS_QUERY_INFORMATION
+            | DESIRED_ACCESS::PROCESS_VM_OPERATION,
+    ) {
         Ok(handl) => handl,
         Err(e) => {
             println!("Error: {}", e);
@@ -44,15 +51,84 @@ fn main() {
     println!("handle: {:#?}", handle);
     escanear_memoria_proceso(handle);
 
-    let handle2 = match open_process(4752) {
-        Ok(handl) => handl,
-        Err(e) => {
-            println!("Error: {}", e);
-            return;
+    let mut buffer_dinamico = String::with_capacity(32);
+    buffer_dinamico.push_str("RustInternals123");
+
+    let direccion_memoria = buffer_dinamico.as_ptr() as usize;
+    let tamano_a_leer = 16;
+    match nt_read_virtual_memory(handle, direccion_memoria, tamano_a_leer) {
+        Ok(bytes_leidos) => {
+            if let Ok(texto_recuperado) = std::str::from_utf8(&bytes_leidos) {
+                println!("[+] ¡ÉXITO! Bytes leídos correctamente.");
+                println!(
+                    "[+] Contenido recuperado de la memoria: {}",
+                    texto_recuperado
+                );
+            } else {
+                println!(
+                    "[!] Se leyeron los bytes pero no son un texto válido: {:?}",
+                    bytes_leidos
+                );
+            }
         }
-    };
-    println!("handle2: {:#?}", handle2);
-    escanear_memoria_proceso(handle2);
+        Err(e) => {
+            println!("[!] La prueba falló. Motivo: {}", e);
+        }
+    }
+    let texto_a_escribir = "Terobolavariable";
+    match nt_write_virtual_memory(handle, direccion_memoria, texto_a_escribir.as_bytes()) {
+        Ok(bytes_escritos) => {
+            println!("[+] ¡ÉXITO! Bytes escritos correctamente.");
+            println!("[+] Bytes escritos: {}", bytes_escritos);
+        }
+        Err(e) => {
+            println!("[!] La prueba falló. Motivo: {}", e);
+        }
+    }
+    println!("VOlviendo a leer la variable ...");
+    match nt_read_virtual_memory(handle, direccion_memoria, tamano_a_leer) {
+        Ok(bytes_leidos) => {
+            if let Ok(texto_recuperado) = std::str::from_utf8(&bytes_leidos) {
+                println!("[+] ¡ÉXITO! Bytes leídos correctamente.");
+                println!(
+                    "[+] Contenido recuperado de la memoria: {}",
+                    texto_recuperado
+                );
+            } else {
+                println!(
+                    "[!] Se leyeron los bytes pero no son un texto válido: {:?}",
+                    bytes_leidos
+                );
+            }
+        }
+        Err(e) => {
+            println!("[!] La prueba falló. Motivo: {}", e);
+        }
+    }
+    match nt_protect_virtual_memory(
+        handle,
+        direccion_memoria,
+        tamano_a_leer,
+        MemoryProtection::ExecuteReadWrite,
+    ) {
+        Ok(_) => {
+            println!("[+] ¡ÉXITO! Permisos de la región de memoria cambiados correctamente.");
+        }
+        Err(e) => {
+            println!("[!] La prueba falló. Motivo: {}", e);
+        }
+    }
+    escanear_memoria_proceso(handle);
+    match nt_close(handle) {
+        Ok(_) => {
+            println!("[+] ¡ÉXITO! Handle cerrado correctamente.");
+        }
+        Err(e) => {
+            println!("[!] La prueba falló. Motivo: {}", e);
+        }
+    }
+
+    println!("---------------------------------");
 
     println!("Simetric key for client: {:?}", simetric_key_for_client.key);
     println!("------------------------------------------");

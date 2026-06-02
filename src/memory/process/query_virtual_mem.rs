@@ -2,11 +2,8 @@
 #![allow(non_snake_case)]
 use crate::techniques::evasion::execution::dinamic_ssn::get_dinamic_ssn;
 use crate::techniques::evasion::execution::indirect_syscall::indirect_syscall_6;
+use super::utils::{HANDLE, SIZE_T};
 use std::ffi::c_void;
-
-pub type HANDLE = *mut c_void;
-
-pub type SIZE_T = usize;
 
 /*
 QueryVirtualMemory seria como la generacion de un mapa de memoria de un proceso,

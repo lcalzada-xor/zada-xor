@@ -1,9 +1,46 @@
+use super::utils::HANDLE;
 use crate::techniques::evasion::execution::dinamic_ssn::get_dinamic_ssn;
 use crate::techniques::evasion::execution::indirect_syscall::indirect_syscall_6;
 
 use std::ffi::c_void;
+use std::ops::BitOr;
 
-pub type HANDLE = *mut c_void;
+/* se implementa la funcion open process para obtener el handle de un proceso*/
+
+#[repr(u32)]
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, Debug)]
+pub enum DESIRED_ACCESS {
+    PROCESS_ALL_ACCESS = 0x0410,
+    PROCESS_VM_READ = 0x0010,
+    PROCESS_VM_WRITE = 0x0020,
+    PROCESS_VM_OPERATION = 0x0008,
+    PROCESS_QUERY_INFORMATION = 0x0400,
+}
+
+impl BitOr<DESIRED_ACCESS> for DESIRED_ACCESS {
+    type Output = u32;
+
+    fn bitor(self, other: DESIRED_ACCESS) -> Self::Output {
+        (self as u32) | (other as u32)
+    }
+}
+
+impl BitOr<DESIRED_ACCESS> for u32 {
+    type Output = u32;
+
+    fn bitor(self, other: DESIRED_ACCESS) -> Self::Output {
+        self | (other as u32)
+    }
+}
+
+impl BitOr<u32> for DESIRED_ACCESS {
+    type Output = u32;
+
+    fn bitor(self, other: u32) -> Self::Output {
+        (self as u32) | other
+    }
+}
 
 #[repr(C)]
 pub struct CLIENT_ID {
@@ -42,10 +79,9 @@ impl OBJECT_ATTRIBUTES {
     }
 }
 
-pub fn open_process(pid: u32) -> Result<HANDLE, String> {
+pub fn open_process(pid: u32, desired_access: u32) -> Result<HANDLE, String> {
     let mut process_handle: HANDLE = std::ptr::null_mut();
 
-    let desired_access: u32 = 0x0410;
     let client_id = CLIENT_ID {
         unique_process: pid as HANDLE,
         unique_thread: std::ptr::null_mut(),
