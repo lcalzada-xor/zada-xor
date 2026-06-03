@@ -2,15 +2,14 @@ use crate::techniques::evasion::dinamic_api_resolution::{get_export_by_name_hash
 
 #[cfg(target_arch = "x86_64")] //solo para x64
 pub fn get_dinamic_ssn(api_hash: u32) -> Result<u32, String> {
-    let base_addr = unsafe {
-        match get_export_by_name_hash(get_ntdll_base(), api_hash) {
-            Ok(addr) => addr,
-            Err(e) => return Err(e.to_string()),
-        }
-    };
+    let base_addr = unsafe { get_ntdll_base() }.expect("Failed to locate NTDLL base address");
+    let api_addr = get_export_by_name_hash(base_addr, api_hash)
+        .map_err(|e| format!("Failed to resolve API with hash {:#08x}: {}", api_hash, e))?;
+
     let mut offset = 0;
+
     loop {
-        let current_addr = unsafe { base_addr.add(offset) };
+        let current_addr = unsafe { api_addr.add(offset) };
         if unsafe {
             *current_addr == 0xCC && *current_addr.add(1) == 0xCC && *current_addr.add(2) == 0xCC
         } {

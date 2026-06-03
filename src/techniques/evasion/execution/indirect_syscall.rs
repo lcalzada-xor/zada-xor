@@ -14,10 +14,7 @@ pub unsafe fn indirect_syscall_6(
     let mut status: i32;
     use std::arch::asm;
 
-    let base = unsafe { get_ntdll_base() };
-    if base.is_null() {
-        return Err(String::from("Failed to locate NTDLL base address"));
-    }
+    let base = unsafe { get_ntdll_base() }.expect("Failed to locate NTDLL base address");
 
     let address_api = match get_export_by_name_hash(base, api_hash) {
         Ok(addr) => addr,

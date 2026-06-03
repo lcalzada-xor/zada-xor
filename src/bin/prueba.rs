@@ -7,7 +7,8 @@ use zada_xor::memory::process::protect_virtual_mem::*;
 use zada_xor::memory::process::query_virtual_mem::*;
 use zada_xor::memory::process::read_process_mem::nt_read_virtual_memory;
 use zada_xor::memory::process::write_process_mem::nt_write_virtual_memory;
-use zada_xor::structures::pe::ExportTable;
+use zada_xor::structures::pe::export::ExportTable;
+use zada_xor::structures::pe::headers::PeHeaderInfo;
 use zada_xor::structures::peb::ldr::PebLdrData;
 use zada_xor::structures::peb::ldr_entry::LdrDataTableEntry;
 #[cfg(target_arch = "x86_64")]
@@ -25,6 +26,14 @@ use zada_xor::techniques::evasion::execution::dynamic_call::*;
 use zada_xor::techniques::evasion::execution::indirect_syscall::*;
 
 fn main() {
+    println!("Obteniendo dir base de ntdll...");
+    let ntdll_base_addr =
+        unsafe { get_ntdll_base().expect("Failed to get ntdll.dll base address") };
+    println!("Dir base de ntdll: {:#x}", ntdll_base_addr as usize);
+
+    let headers = unsafe { PeHeaderInfo::parse_headers(ntdll_base_addr) }
+        .expect("Failed to parse PE headers");
+    println!("Headers PE: {:#x}", headers.optional_header_ptr as usize);
     let identity_server = Identity::new();
     let identity_client = Identity::new();
 
@@ -34,7 +43,8 @@ fn main() {
     );
     let self_pid = std::process::id();
     println!("self_pid: {}", self_pid);
-    println!("NtClose: {:#x}", unique_hash("NtClose"));
+    println!("ntdll.dll: {:#x}", unique_hash("ntdll.dll"));
+    println!("kernel32.dll: {:#x}", unique_hash("kernel32.dll"));
     let handle = match open_process(
         self_pid,
         DESIRED_ACCESS::PROCESS_VM_READ
@@ -308,10 +318,11 @@ fn main() {
         println!("--- Fin del discovery ---\n");
 
         println!("\n--- GetNtdllBase ---");
-        println!("ntdll base: {:#x}", get_ntdll_base() as usize);
+        let ntdll_base = get_ntdll_base().expect("Failed to locate NTDLL base address");
+        println!("ntdll base: {:#x}", ntdll_base as usize);
         println!(
-            "{}",
-            get_export_by_name(get_ntdll_base(), "strcpy").unwrap() as usize
+            "strcpy address: {:#x}",
+            get_export_by_name(ntdll_base, "strcpy").unwrap() as usize
         );
         let src = b"hola\0";
         let mut dst = [0u8; 10];
@@ -328,15 +339,17 @@ fn main() {
     );
 
     let hash = 0x2759addf;
-    let nt_allocate_virtual_memory_with_hash =
-        get_export_by_name_hash(unsafe { get_ntdll_base() }, hash);
-    match nt_allocate_virtual_memory_with_hash {
-        Ok(address) => println!(
-            "nt_allocate_virtual_memory found at RVA: {:#x}",
-            address as usize
-        ),
-        Err(_) => println!("nt_allocate_virtual_memory not found"),
-    }
+    let nt_allocate_virtual_memory_with_hash = unsafe {
+        get_export_by_name_hash(
+            get_ntdll_base().expect("Failed to locate NTDLL base address"),
+            hash,
+        )
+        .expect("Failed to resolve NtAllocateVirtualMemory")
+    };
+    println!(
+        "nt_allocate_virtual_memory found at RVA: {:#x}",
+        nt_allocate_virtual_memory_with_hash as usize
+    );
     let nt_delay_execution_ssn: u32 = 0x0034;
 
     let segundos = 10;

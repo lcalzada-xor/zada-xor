@@ -9,7 +9,7 @@ pub struct PeHeaderInfo {
 }
 
 impl PeHeaderInfo {
-    pub unsafe fn parse(base: *const u8) -> Option<Self> {
+    pub unsafe fn parse_headers(base: *const u8) -> Option<Self> {
         unsafe {
             let e_lfanew = read_u32(base, DOS_E_LFANEW) as usize;
             let nt_headers_ptr = base.add(e_lfanew);

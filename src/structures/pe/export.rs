@@ -20,7 +20,7 @@ pub struct ExportTable {
 impl ExportTable {
     pub unsafe fn new(base: *const u8) -> Option<Self> {
         unsafe {
-            let headers = PeHeaderInfo::parse(base)?;
+            let headers = PeHeaderInfo::parse_headers(base)?;
             let opt = headers.optional_header_ptr;
 
             let exp_dir_off = headers.export_directory_offset()?;
