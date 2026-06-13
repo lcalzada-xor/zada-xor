@@ -23,12 +23,18 @@ pub unsafe fn get_ntdll_base() -> Result<*const u8, &'static str> {
             let entry_ptr = ListEntry::new(node).containing_record(ldr_off::IN_LOAD_ORDER_LINKS);
             let entry = LdrDataTableEntry::new(entry_ptr);
 
-            if unique_hash(&entry.base_dll_name().expect("Full DLL name not found")) == 0x68861c6f {
+            if unique_hash(
+                &entry
+                    .base_dll_name()
+                    .expect("Full DLL name not found")
+                    .to_lowercase(),
+            ) == 0x68861c6f
+            {
                 return Ok(entry.dll_base());
             }
         }
 
-        Err("Module not found")
+        Err("Ntdll.dll Module not found")
     }
 }
 
@@ -43,12 +49,18 @@ pub unsafe fn get_kernel32_base() -> Result<*const u8, &'static str> {
             let entry_ptr = ListEntry::new(node).containing_record(ldr_off::IN_LOAD_ORDER_LINKS);
             let entry = LdrDataTableEntry::new(entry_ptr);
 
-            if unique_hash(&entry.base_dll_name().expect("Full DLL name not found")) == 0xd32210ae {
+            if unique_hash(
+                &entry
+                    .base_dll_name()
+                    .expect("Full DLL name not found")
+                    .to_lowercase(),
+            ) == 0xd32210ae
+            {
                 return Ok(entry.dll_base());
             }
         }
 
-        Err("Module not found")
+        Err("Kernel32.dll Module not found")
     }
 }
 pub unsafe fn get_dll_base_by_hash(hash: u32) -> Result<*const u8, &'static str> {
@@ -62,7 +74,13 @@ pub unsafe fn get_dll_base_by_hash(hash: u32) -> Result<*const u8, &'static str>
             let entry_ptr = ListEntry::new(node).containing_record(ldr_off::IN_LOAD_ORDER_LINKS);
             let entry = LdrDataTableEntry::new(entry_ptr);
 
-            if unique_hash(&entry.base_dll_name().expect("Full DLL name not found")) == hash {
+            if unique_hash(
+                &entry
+                    .base_dll_name()
+                    .expect("Full DLL name not found")
+                    .to_lowercase(),
+            ) == hash
+            {
                 return Ok(entry.dll_base());
             }
         }

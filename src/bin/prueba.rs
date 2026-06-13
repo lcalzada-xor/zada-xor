@@ -45,6 +45,12 @@ fn main() {
     println!("self_pid: {}", self_pid);
     println!("ntdll.dll: {:#x}", unique_hash("ntdll.dll"));
     println!("kernel32.dll: {:#x}", unique_hash("kernel32.dll"));
+    let func1 = "RtlUserThreadStart";
+    let func2 = "BaseThreadInitThunk";
+    let func3 = "NtClose";
+    println!("func1: {:#x}", unique_hash(func1));
+    println!("func2: {:#x}", unique_hash(func2));
+    println!("func3: {:#x}", unique_hash(func3));
     let handle = match open_process(
         self_pid,
         DESIRED_ACCESS::PROCESS_VM_READ
