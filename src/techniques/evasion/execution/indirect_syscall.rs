@@ -45,7 +45,7 @@ pub unsafe fn indirect_syscall_6(
 
     #[cfg(debug_assertions)]
     println!(
-        "Syscall Info: Sysnumber={:#x}, SyscallAddress={:#x}, ApiHash={:#x}, SpoofData={:?}",
+        "[Debug] Syscall Info: Sysnumber={:#x}, SyscallAddress={:#x}, ApiHash={:#x}, SpoofData={:?}",
         sys_number, syscall_address, api_hash, spoof_data
     );
     // luego para volver se usa un gadget add rsp, 0x28  ; (o el tamaño que se necesite) ret -> a esto se le llama buscar gadgets

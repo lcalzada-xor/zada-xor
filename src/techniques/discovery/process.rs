@@ -151,7 +151,7 @@ pub fn process_discovery() -> Result<Vec<ProcessInfo>, String> {
     if status as u32 != 0xC0000004 {
         #[cfg(debug_assertions)]
         println!(
-            "Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
+            "[Debug] Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
             status
         );
         return Err(format!(
@@ -185,7 +185,7 @@ pub fn process_discovery() -> Result<Vec<ProcessInfo>, String> {
         unsafe { dealloc(buffer_ptr, layout) };
         #[cfg(debug_assertions)]
         println!(
-            "La segunda llamada de NtQuerySystemInformation falló con status: 0x{:X}",
+            "[Debug] La segunda llamada de NtQuerySystemInformation falló con status: 0x{:X}",
             status
         );
         return Err(format!(

@@ -201,7 +201,7 @@ pub fn get_unwind_offsets(
     };
 
     #[cfg(debug_assertions)]
-    println!("dll_pdata: {:?}", dll_pdata);
+    println!("[Debug] dll_pdata: {:?}", dll_pdata);
 
     if dll_pdata.virtual_address == 0 || dll_pdata.size == 0 {
         return Err("dll.dll no contiene un directorio de excepciones (.pdata)".into());
@@ -215,7 +215,7 @@ pub fn get_unwind_offsets(
     let pdata_entry_func = parse_pdata_entry(dll_pdata_va, dll_pdata.size as usize, func_rva)?;
 
     #[cfg(debug_assertions)]
-    println!("pdata_entry_func: {:?}", pdata_entry_func);
+    println!("[Debug] pdata_entry_func: {:?}", pdata_entry_func);
 
     // --- Calcular VAs de los Unwind Info ---
     let mut current_unwind_info_va =
@@ -226,9 +226,9 @@ pub fn get_unwind_offsets(
         let (unwind_info, extension) = parse_full_unwind_info(current_unwind_info_va)?;
 
         #[cfg(debug_assertions)]
-        println!("unwind_info: {:?}", unwind_info);
+        println!("[Debug] unwind_info: {:?}", unwind_info);
         #[cfg(debug_assertions)]
-        println!("extension: {:?}", extension);
+        println!("[Debug] extension: {:?}", extension);
 
         total_offset_bytes += unsafe {
             match calcular_bytes_frame(current_unwind_info_va, unwind_info.count_of_unwind_codes) {
@@ -333,7 +333,7 @@ pub fn get_pdata_of_func_by_rva(
     };
 
     #[cfg(debug_assertions)]
-    println!("dll_pdata: {:?}", dll_pdata);
+    println!("[Debug] dll_pdata: {:?}", dll_pdata);
 
     if dll_pdata.virtual_address == 0 || dll_pdata.size == 0 {
         return Err("dll.dll no contiene un directorio de excepciones (.pdata)".into());

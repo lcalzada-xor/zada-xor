@@ -103,7 +103,7 @@ pub fn pdata_pattern_find_starting_at_rand_func(
 
     let start_idx = (rng.next_u64() as usize) % num_entries; //eleegimos funcion aleatoria
     #[cfg(debug_assertions)]
-    println!("start_idx: {:#x}", start_idx);
+    println!("[Debug] start_idx: {:#x}", start_idx);
     // se itera por todas las funcs de forma circular
     for i in 0..num_entries {
         // Hacemos wrap-around (módulo) para que si empieza al final, vuelva al principio

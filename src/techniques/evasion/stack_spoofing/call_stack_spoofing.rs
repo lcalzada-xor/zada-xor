@@ -163,7 +163,7 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
                     index_gadget_1 = index;
                     #[cfg(debug_assertions)]
                     println!(
-                        "Gadget1 found at address: {:#x}, index: {}, stack size equal than gadget cleaning!",
+                        "[Debug] Gadget1 found at address: {:#x}, index: {}, stack size equal than gadget cleaning!",
                         addr, index_gadget_1
                     );
                     break;
@@ -175,7 +175,7 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
     let relative_addr_1 = finded_addr_gadget_1 - dll_base as usize;
     #[cfg(debug_assertions)]
     println!(
-        "[+] Gadget1 ADD RSP, 0x38; RET found at address: {:#x}, relative: {:#x}, index: {}",
+        "[Debug] [+] Gadget1 ADD RSP, 0x38; RET found at address: {:#x}, relative: {:#x}, index: {}",
         finded_addr_gadget_1, relative_addr_1, index_gadget_1
     );
     let pattern_gadget_2: &[&[u8]] = &[
@@ -200,7 +200,7 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
 
                 #[cfg(debug_assertions)]
                 println!(
-                    "[+] Gadget2 CALL RDI or rsi or r15 or r12 found at address: {:#x}, relative: {:#x}, index: {}",
+                    "[Debug] [+] Gadget2 CALL RDI or rsi or r15 or r12 found at address: {:#x}, relative: {:#x}, index: {}",
                     finded_addr_gadget_2, relative_addr_2, index_gadget_2
                 );
                 break;
@@ -210,7 +210,7 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
 
     if !found_g2 {
         #[cfg(debug_assertions)]
-        println!("[-] ERROR: No se encontró Gadget 2 válido tras 1000 intentos.");
+        println!("[Debug] [-] ERROR: No se encontró Gadget 2 válido tras 1000 intentos.");
         return None;
     }
     Some(Gadgets {
