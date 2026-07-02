@@ -1,3 +1,4 @@
+use std::io;
 use zada_xor::cipher::communication::SecureDataPacket;
 use zada_xor::cipher::handshake::*;
 use zada_xor::cipher::keys::Identity;
@@ -6,6 +7,7 @@ use zada_xor::memory::process::open_process::*;
 use zada_xor::memory::process::protect_virtual_mem::*;
 use zada_xor::memory::process::query_virtual_mem::*;
 use zada_xor::memory::process::read_process_mem::nt_read_virtual_memory;
+use zada_xor::memory::process::virtual_alloc::*;
 use zada_xor::memory::process::write_process_mem::nt_write_virtual_memory;
 use zada_xor::structures::pe::export::ExportTable;
 use zada_xor::structures::pe::headers::PeHeaderInfo;
@@ -26,6 +28,58 @@ use zada_xor::techniques::evasion::execution::dynamic_call::*;
 use zada_xor::techniques::evasion::execution::indirect_syscall::*;
 
 fn main() {
+    let self_pid = std::process::id();
+    println!("self_pid: {}", self_pid);
+
+    println!(
+        "Hahs NtAllocateVirtualMemory: {:#x}",
+        unique_hash("NtAllocateVirtualMemory")
+    );
+
+    match get_process_table() {
+        Ok(table) => println!("{}", table),
+        Err(e) => println!("Error al ejecutar la syscall: {}", e),
+    };
+    println!("Por favor, selecciona un pid para continuar:");
+
+    let mut pid = String::new();
+
+    io::stdin()
+        .read_line(&mut pid)
+        .expect("Fallo al leer la línea");
+    let pid: u32 = pid.trim().parse::<u32>().unwrap();
+    let handle = match open_process(
+        pid,
+        DESIRED_ACCESS::PROCESS_VM_READ
+            | DESIRED_ACCESS::PROCESS_VM_WRITE
+            | DESIRED_ACCESS::PROCESS_QUERY_INFORMATION
+            | DESIRED_ACCESS::PROCESS_VM_OPERATION,
+    ) {
+        Ok(handl) => handl,
+        Err(e) => {
+            println!("Error: {}", e);
+            return;
+        }
+    };
+    escanear_memoria_proceso(handle);
+
+    match nt_allocate_virtual_memory(
+        handle,
+        0 as *mut u8,
+        1024,
+        AllocationType::MEM_COMMIT,
+        PageProtection::PAGE_EXECUTE_READWRITE,
+    ) {
+        Ok(return_value) => {
+            println!("[+] ¡ÉXITO! Memoria allocada correctamente.");
+            println!("[+] Memoria allocada: {:#x}", return_value as usize);
+        }
+        Err(e) => {
+            println!("[!] La prueba falló. Motivo: {}", e);
+        }
+    }
+    escanear_memoria_proceso(handle);
+
     println!("Obteniendo dir base de ntdll...");
     let ntdll_base_addr =
         unsafe { get_ntdll_base().expect("Failed to get ntdll.dll base address") };
@@ -41,8 +95,6 @@ fn main() {
         identity_server.public_key.to_bytes(),
         identity_client.public_key.to_bytes(),
     );
-    let self_pid = std::process::id();
-    println!("self_pid: {}", self_pid);
     println!("ntdll.dll: {:#x}", unique_hash("ntdll.dll"));
     println!("kernel32.dll: {:#x}", unique_hash("kernel32.dll"));
     let func1 = "RtlUserThreadStart";
@@ -51,19 +103,6 @@ fn main() {
     println!("func1: {:#x}", unique_hash(func1));
     println!("func2: {:#x}", unique_hash(func2));
     println!("func3: {:#x}", unique_hash(func3));
-    let handle = match open_process(
-        self_pid,
-        DESIRED_ACCESS::PROCESS_VM_READ
-            | DESIRED_ACCESS::PROCESS_VM_WRITE
-            | DESIRED_ACCESS::PROCESS_QUERY_INFORMATION
-            | DESIRED_ACCESS::PROCESS_VM_OPERATION,
-    ) {
-        Ok(handl) => handl,
-        Err(e) => {
-            println!("Error: {}", e);
-            return;
-        }
-    };
     println!("handle: {:#?}", handle);
     escanear_memoria_proceso(handle);
 
@@ -285,40 +324,8 @@ fn main() {
         }
 
         println!("\n--- Process Discovery ---");
-        match process_discovery() {
-            Ok(processes) => {
-                println!(
-                    "┌──────────┬──────────┬──────────┬──────────┬──────────┬────────────────┬─────────────────────────────────────┐"
-                );
-                println!(
-                    "│ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^14} │ {:<35} │",
-                    "PID", "PPID", "Session", "Threads", "Handles", "Working Set", "Process Name"
-                );
-                println!(
-                    "├──────────┼──────────┼──────────┼──────────┼──────────┼────────────────┼─────────────────────────────────────┤"
-                );
-                for proc in &processes {
-                    let formatted_ws = format_bytes(proc.working_set_size);
-                    let name = if proc.name.len() > 35 {
-                        format!("{}...", &proc.name[..32])
-                    } else {
-                        proc.name.clone()
-                    };
-                    println!(
-                        "│ {:<8} │ {:<8} │ {:<8} │ {:<8} │ {:<8} │ {:>14} │ {:<35} │",
-                        proc.pid,
-                        proc.parent_pid,
-                        proc.session_id,
-                        proc.threads_count,
-                        proc.handle_count,
-                        formatted_ws,
-                        name
-                    );
-                }
-                println!(
-                    "└──────────┴──────────┴──────────┴──────────┴──────────┴────────────────┴─────────────────────────────────────┘"
-                );
-            }
+        match get_process_table() {
+            Ok(table) => println!("{}", table),
             Err(e) => println!("Error al ejecutar la syscall: {}", e),
         }
         println!("--- Fin del discovery ---\n");
@@ -358,7 +365,7 @@ fn main() {
     );
     let nt_delay_execution_ssn: u32 = 0x0034;
 
-    let segundos = 10;
+    let segundos = 60;
     let mut delay_interval: i64 = -(segundos * 10_000_000);
     println!("Iniciando la congelacion de {} segundos directa.", segundos);
     unsafe {
@@ -409,18 +416,4 @@ fn main() {
             Err(err) => println!("Error al ejecutar la syscall: {}", err),
         }
     }
-}
-
-fn format_bytes(bytes: u64) -> String {
-    if bytes == 0 {
-        return "0 B".to_string();
-    }
-    let units = ["B", "KB", "MB", "GB"];
-    let mut size = bytes as f64;
-    let mut unit_idx = 0;
-    while size >= 1024.0 && unit_idx < units.len() - 1 {
-        size /= 1024.0;
-        unit_idx += 1;
-    }
-    format!("{:.2} {}", size, units[unit_idx])
 }

@@ -203,3 +203,53 @@ pub fn process_discovery() -> Result<Vec<ProcessInfo>, String> {
 
     parsed_processes
 }
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let units = ["B", "KB", "MB", "GB"];
+    let mut size = bytes as f64;
+    let mut unit_idx = 0;
+    while size >= 1024.0 && unit_idx < units.len() - 1 {
+        size /= 1024.0;
+        unit_idx += 1;
+    }
+    format!("{:.2} {}", size, units[unit_idx])
+}
+
+pub fn get_process_table() -> Result<String, String> {
+    let processes = process_discovery()?;
+    let mut output = String::new();
+
+    output.push_str("┌──────────┬──────────┬──────────┬──────────┬──────────┬────────────────┬─────────────────────────────────────┐\n");
+    output.push_str(&format!(
+        "│ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^8} │ {:^14} │ {:<35} │\n",
+        "PID", "PPID", "Session", "Threads", "Handles", "Working Set", "Process Name"
+    ));
+    output.push_str("├──────────┼──────────┼──────────┼──────────┼──────────┼────────────────┼─────────────────────────────────────┤\n");
+
+    for proc in &processes {
+        let formatted_ws = format_bytes(proc.working_set_size);
+        let name = if proc.name.len() > 35 {
+            format!("{}...", &proc.name[..32])
+        } else {
+            proc.name.clone()
+        };
+        output.push_str(&format!(
+            "│ {:<8} │ {:<8} │ {:<8} │ {:<8} │ {:<8} │ {:>14} │ {:<35} │\n",
+            proc.pid,
+            proc.parent_pid,
+            proc.session_id,
+            proc.threads_count,
+            proc.handle_count,
+            formatted_ws,
+            name
+        ));
+    }
+
+    output.push_str("└──────────┴──────────┴──────────┴──────────┴──────────┴────────────────┴─────────────────────────────────────┘");
+
+    Ok(output)
+}
+
