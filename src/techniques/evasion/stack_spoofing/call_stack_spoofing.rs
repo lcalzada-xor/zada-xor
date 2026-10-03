@@ -1,5 +1,5 @@
 use super::unwind_info::*;
-use crate::memory::process::pattern_scan_mem::pdata_pattern_find_starting_at_rand_func;
+use crate::nt::memory::pattern_scan_mem::pdata_pattern_find_starting_at_rand_func;
 use crate::techniques::evasion::dinamic_api_resolution::{
     get_export_by_name_hash, get_kernel32_base, get_ntdll_base,
 };
@@ -149,7 +149,7 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
     let pattern_gadget_1: &[&[u8]] = &[&[0x48, 0x83, 0xC4, func_arg_size, 0xC3]]; // ADD RSP, 0x38; RET
     let finded_addr_gadget_1;
     #[cfg(debug_assertions)]
-    let index_gadget_1;
+    let _index_gadget_1;
 
     loop {
         match pdata_pattern_find_starting_at_rand_func(dll_base, pattern_gadget_1) {
@@ -164,11 +164,11 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
 
                     #[cfg(debug_assertions)]
                     {
-                        index_gadget_1 = _index;
-                        println!(
-                            "[Debug] Gadget1 found at address: {:#x}, index: {}, stack size equal than gadget cleaning!",
-                            addr, index_gadget_1
-                        );
+                        _index_gadget_1 = _index;
+                        // println!(
+                        //     "[Debug] Gadget1 found at address: {:#x}, index: {}, stack size equal than gadget cleaning!",
+                        //     addr, _index_gadget_1
+                        // );
                     }
                     break;
                 }
@@ -178,11 +178,11 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
     }
     #[cfg(debug_assertions)]
     {
-        let relative_addr_1 = finded_addr_gadget_1 - dll_base as usize;
-        println!(
-            "[Debug] [+] Gadget1 ADD RSP, 0x38; RET found at address: {:#x}, relative: {:#x}, index: {}",
-            finded_addr_gadget_1, relative_addr_1, index_gadget_1
-        );
+        let _relative_addr_1 = finded_addr_gadget_1 - dll_base as usize;
+        // println!(
+        //     "[Debug] [+] Gadget1 ADD RSP, 0x38; RET found at address: {:#x}, relative: {:#x}, index: {}",
+        //     finded_addr_gadget_1, _relative_addr_1, index_gadget_1
+        // );
     }
     let pattern_gadget_2: &[&[u8]] = &[
         //cualquiera de estos nos vale
@@ -204,11 +204,11 @@ pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
                 found_g2 = true;
                 #[cfg(debug_assertions)]
                 {
-                    let relative_addr_2 = finded_addr_gadget_2 - dll_base as usize;
-                    println!(
-                        "[Debug] [+] Gadget2 CALL RDI or rsi or r15 or r12 found at address: {:#x}, relative: {:#x}, index: {}",
-                        finded_addr_gadget_2, relative_addr_2, index_gadget_2
-                    );
+                    let _relative_addr_2 = finded_addr_gadget_2 - dll_base as usize;
+                    // println!(
+                    //     "[Debug] [+] Gadget2 CALL RDI or rsi or r15 or r12 found at address: {:#x}, relative: {:#x}, index: {}",
+                    //     finded_addr_gadget_2, _relative_addr_2, index_gadget_2
+                    // );
                 }
                 break;
             }

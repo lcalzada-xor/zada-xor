@@ -1,8 +1,8 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
+use crate::nt::types::{HANDLE, SIZE_T};
 use crate::techniques::evasion::execution::dinamic_ssn::get_dinamic_ssn;
 use crate::techniques::evasion::execution::indirect_syscall::indirect_syscall_6;
-use super::utils::{HANDLE, SIZE_T};
 use std::ffi::c_void;
 
 /*
@@ -91,6 +91,7 @@ pub fn nt_query_virtual_memory(
                     "Error en la llamada a NtQueryVirtualMemory: {:#X}",
                     return_value
                 ))),
+
             },
             Err(e) => Err(e),
         }
@@ -115,21 +116,28 @@ pub fn escanear_memoria_proceso(process_handle: HANDLE) {
                 }
 
                 const MEM_COMMIT: u32 = 0x1000;
+                const PAGE_READONLY: u32 = 0x02;
                 const PAGE_READWRITE: u32 = 0x04;
+                const PAGE_EXECUTE: u32 = 0x10;
+                const PAGE_EXECUTE_READ: u32 = 0x20;
                 const PAGE_EXECUTE_READWRITE: u32 = 0x40;
 
                 if mbi.State == MEM_COMMIT {
-                    if mbi.Protect == PAGE_READWRITE || mbi.Protect == PAGE_EXECUTE_READWRITE {
-                        let tipo = if mbi.Protect == PAGE_EXECUTE_READWRITE {
-                            "RWX"
-                        } else {
-                            "RW"
-                        };
+                    let tipo = match mbi.Protect {
+                        PAGE_READWRITE => Some("RW"),
+                        PAGE_EXECUTE_READWRITE => Some("RWX"),
+                        PAGE_EXECUTE_READ => Some("RX"),
+                        PAGE_READONLY => Some("RO"),
+                        PAGE_EXECUTE => Some("X"),
+                        _ => None,
+                    };
+
+                    if let Some(tipo_str) = tipo {
                         let formatted_base = format!("{:p}", mbi.BaseAddress);
                         let formatted_size = format!("{:#X} bytes", mbi.RegionSize);
                         println!(
                             "│ {:<36} │ {:>26} │ {:^10} │",
-                            formatted_base, formatted_size, tipo
+                            formatted_base, formatted_size, tipo_str
                         );
                         regiones_encontradas += 1;
                     }

@@ -1,4 +1,4 @@
-use crate::memory::process::pattern_scan_mem::find_pattern_in_specific_func;
+use crate::nt::memory::pattern_scan_mem::find_pattern_in_specific_func;
 use crate::techniques::evasion::dinamic_api_resolution::{get_export_by_name_hash, get_ntdll_base};
 use crate::techniques::evasion::stack_spoofing::call_stack_spoofing::*;
 use std::arch::asm;
@@ -43,11 +43,11 @@ pub unsafe fn indirect_syscall_6(
     let spoof_ptr = &spoof_data as *const SpoofData;
     let mut status: i32;
 
-    #[cfg(debug_assertions)]
-    println!(
-        "[Debug] Syscall Info: Sysnumber={:#x}, SyscallAddress={:#x}, ApiHash={:#x}, SpoofData={:?}",
-        sys_number, syscall_address, api_hash, spoof_data
-    );
+    // #[cfg(debug_assertions)]
+    // println!(
+    //     "[Debug] Syscall Info: Sysnumber={:#x}, SyscallAddress={:#x}, ApiHash={:#x}, SpoofData={:?}",
+    //     sys_number, syscall_address, api_hash, spoof_data
+    // );
     // luego para volver se usa un gadget add rsp, 0x28  ; (o el tamaño que se necesite) ret -> a esto se le llama buscar gadgets
     macro_rules! execute_ind_syscall_with_spoof {
         ($save_rsp:expr, $restore_rsp:expr, $anchor_lea:expr, $save_reg_name:tt, $anchor_reg_name:tt) => {

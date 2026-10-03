@@ -1,4 +1,4 @@
-use super::utils::HANDLE;
+use crate::nt::types::HANDLE;
 use crate::techniques::evasion::execution::dinamic_ssn::get_dinamic_ssn;
 use crate::techniques::evasion::execution::indirect_syscall::indirect_syscall_6;
 

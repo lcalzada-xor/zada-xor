@@ -1,8 +1,8 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
+use crate::nt::types::HANDLE;
 use crate::techniques::evasion::execution::dinamic_ssn::get_dinamic_ssn;
 use crate::techniques::evasion::execution::indirect_syscall::indirect_syscall_6;
-use super::utils::HANDLE;
 
 /*
 nt_read_virtual_memory seria como leer la memoria de un proceso desde el kernel.
@@ -35,6 +35,7 @@ pub fn nt_read_virtual_memory(
                     "Error en la llamada a NtReadVirtualMemory: {:#X}",
                     return_value
                 ))),
+
             },
             Err(e) => Err(e),
         }

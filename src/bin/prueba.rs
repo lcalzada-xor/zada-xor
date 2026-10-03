@@ -2,13 +2,14 @@ use std::io;
 use zada_xor::cipher::communication::SecureDataPacket;
 use zada_xor::cipher::handshake::*;
 use zada_xor::cipher::keys::Identity;
-use zada_xor::memory::process::close_process::*;
-use zada_xor::memory::process::open_process::*;
-use zada_xor::memory::process::protect_virtual_mem::*;
-use zada_xor::memory::process::query_virtual_mem::*;
-use zada_xor::memory::process::read_process_mem::nt_read_virtual_memory;
-use zada_xor::memory::process::virtual_alloc::*;
-use zada_xor::memory::process::write_process_mem::nt_write_virtual_memory;
+use zada_xor::nt::kernel_objects::close::*;
+use zada_xor::nt::memory::protect_virtual_mem::*;
+use zada_xor::nt::memory::query_virtual_mem::*;
+use zada_xor::nt::memory::read_process_mem::nt_read_virtual_memory;
+use zada_xor::nt::memory::write_process_mem::nt_write_virtual_memory;
+use zada_xor::nt::process::open_process::*;
+use zada_xor::nt::process::query_information_process::*;
+
 use zada_xor::structures::pe::export::ExportTable;
 use zada_xor::structures::pe::headers::PeHeaderInfo;
 use zada_xor::structures::peb::ldr::PebLdrData;
@@ -26,19 +27,21 @@ use zada_xor::techniques::evasion::execution::dinamic_ssn::*;
 use zada_xor::techniques::evasion::execution::direct_syscall::*;
 use zada_xor::techniques::evasion::execution::dynamic_call::*;
 use zada_xor::techniques::evasion::execution::indirect_syscall::*;
+use zada_xor::techniques::evasion::memory::write_process_mem_rw_rx::*;
+use zada_xor::nt::kernel_objects::query_object::*;
 
 fn main() {
     let self_pid = std::process::id();
     println!("self_pid: {}", self_pid);
 
     println!(
-        "Hahs NtAllocateVirtualMemory: {:#x}",
-        unique_hash("NtAllocateVirtualMemory")
+        "Hahs ntqueryobject: {:#x}",
+        unique_hash("NtQueryObject")
     );
 
     match get_process_table() {
         Ok(table) => println!("{}", table),
-        Err(e) => println!("Error al ejecutar la syscall: {}", e),
+        Err(e) => println!("Error al ejecu8784tar la syscall: {}", e),
     };
     println!("Por favor, selecciona un pid para continuar:");
 
@@ -61,25 +64,24 @@ fn main() {
             return;
         }
     };
-    escanear_memoria_proceso(handle);
 
-    match nt_allocate_virtual_memory(
-        handle,
-        0 as *mut u8,
-        1024,
-        AllocationType::MEM_COMMIT,
-        PageProtection::PAGE_EXECUTE_READWRITE,
-    ) {
-        Ok(return_value) => {
-            println!("[+] ¡ÉXITO! Memoria allocada correctamente.");
-            println!("[+] Memoria allocada: {:#x}", return_value as usize);
+    match query_object_size_solved(handle, OBJECT_INFORMATION_CLASS::ObjectTypesInformation) {
+        Ok(bytes) => {
+            unsafe {println!("[+] Bytes recibidos de query_object_size_solved: {:#?}", &*(bytes.as_ptr() as *const OBJECT_TYPES_INFORMATION))}
         }
-        Err(e) => {
-            println!("[!] La prueba falló. Motivo: {}", e);
-        }
+        Err(e) => println!("[!] query_object_size_solved falló. Motivo: {}", e),
     }
-    escanear_memoria_proceso(handle);
 
+    match print_all_handles_info(handle) {
+        Ok(_) => println!("[+] ¡ÉXITO! Handles obtenidos correctamente."),
+        Err(e) => println!("[!] La prueba falló. Motivo: {}", e),
+    }
+
+    let bytes_to_write = "RustInternals123".as_bytes();
+    match write_process_mem_rw_rx(handle, bytes_to_write) {
+        Ok(_) => println!("[+] ¡ÉXITO! Bytes escritos correctamente."),
+        Err(e) => println!("[!] La prueba falló. Motivo: {}", e),
+    }
     println!("Obteniendo dir base de ntdll...");
     let ntdll_base_addr =
         unsafe { get_ntdll_base().expect("Failed to get ntdll.dll base address") };
