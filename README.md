@@ -2,6 +2,11 @@
 
 > **Languages / Idiomas:** **English** | [Español](README_ES.md)
 
+[![Crates.io](https://img.shields.io/crates/v/zada-xor.svg)](https://crates.io/crates/zada-xor)
+[![Documentation](https://docs.rs/zada-xor/badge.svg)](https://docs.rs/zada-xor)
+[![License](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue.svg)](Cargo.toml)
+[![Platform](https://img.shields.io/badge/platform-Windows%20(x64%20%7C%20x86)-lightgrey.svg)](Cargo.toml)
+
 **Zada-Xor** is a reverse engineering, memory forensics, and offensive/defensive security research framework implemented entirely in Rust. Its fundamental purpose lies in direct interaction with the native Windows NT subsystem (`ntoskrnl.exe` / `ntdll.dll`) in user mode (Ring 3), completely eschewing Microsoft-provided abstraction crates for Rust (`windows`, `windows-sys`, or `winapi`) as well as third-party PE parsers.
 
 The project implements from scratch primitives for manual parsing of PE/PE32+ executable structures, undetectable traversal of loader lists in the Process Environment Block (PEB), dynamic resolution of System Service Numbers (SSN) via advanced in-memory disassembly techniques (Hell's Gate / Halo's Gate), dispatch of *Indirect Syscalls* combined with synthetic *Call Stack Spoofing*, and a production-grade cryptographic channel based on Diffie-Hellman key exchange over Curve25519 and AEAD ChaCha20-Poly1305 symmetric authenticated encryption.
@@ -71,9 +76,9 @@ The project implements from scratch primitives for manual parsing of PE/PE32+ ex
   - [AEAD ChaCha20-Poly1305 Symmetric Authenticated Encryption (`cipher_data.rs`)](#aead-chacha20-poly1305-symmetric-authenticated-encryption-cipher_datars)
     - [Payload Envelope Layout](#payload-envelope-layout)
   - [Handshake Protocol with Key Anonymization (`handshake.rs`)](#handshake-protocol-with-key-anonymization-handshakers)
-- [Demonstration and Validation Binaries (`src/bin/`)](#demonstration-and-validation-binaries-srcbin)
-  - [1. `src/bin/prueba.rs`: Comprehensive 25-Step Integration Suite](#1-srcbinpruebars-comprehensive-25-step-integration-suite)
-  - [2. `src/bin/prueba_call_spoofing.rs`: Specialized Evasion PoC](#2-srcbinprueba_call_spoofingrs-specialized-evasion-poc)
+- [Demonstration and Validation Examples (`examples/`)](#demonstration-and-validation-examples-examples)
+  - [1. `examples/prueba.rs`: Comprehensive 25-Step Integration Suite](#1-examplespruebars-comprehensive-25-step-integration-suite)
+  - [2. `examples/call_spoofing.rs`: Specialized Evasion PoC](#2-examplescall_spoofingrs-specialized-evasion-poc)
 - [Compilation, Optimization, and Laboratory Environments](#compilation-optimization-and-laboratory-environments)
   - [Optimization Profile in `Cargo.toml`](#optimization-profile-in-cargotoml)
   - [Cross-Compilation for Windows](#cross-compilation-for-windows)
@@ -599,11 +604,15 @@ To guarantee anonymity:
 
 ---
 
-## Demonstration and Validation Binaries (`src/bin/`)
+## Demonstration and Validation Examples (`examples/`)
 
-The repository includes two standalone executable binaries designed to validate all implemented modules.
+The repository includes two standalone examples designed to validate all implemented modules. Run them via `cargo run --example <name>`:
 
-### 1. `src/bin/prueba.rs`: Comprehensive 25-Step Integration Suite
+### 1. `examples/prueba.rs`: Comprehensive 25-Step Integration Suite
+
+```bash
+cargo run --example prueba
+```
 
 This binary sequentially runs a comprehensive end-to-end integration test:
 
@@ -636,7 +645,11 @@ This binary sequentially runs a comprehensive end-to-end integration test:
     - Dynamically extracts `NtDelayExecution`'s SSN via `get_dinamic_ssn`.
     - Dispatches `indirect_syscall_6` using the dynamic SSN combined with Call Stack Spoofing, spoofing the call stack with NTDLL `.pdata` frames.
 
-### 2. `src/bin/prueba_call_spoofing.rs`: Specialized Evasion PoC
+### 2. `examples/call_spoofing.rs`: Specialized Evasion PoC
+
+```bash
+cargo run --example call_spoofing
+```
 
 This binary provides an isolated verification of call stack spoofing:
 1. Configures a 60-second negative delay interval (`delay_interval = -(60 * 10_000_000)` in 100-nanosecond units).
@@ -745,5 +758,17 @@ WINEPREFIX=~/.wine32 WINEARCH=win32 wine target/i686-pc-windows-gnu/release/prue
 | **Crypto AEAD** | `src/cipher/cipher_data.rs` | `CipherData::cipher`, `CipherData::decipher` | ChaCha20-Poly1305 authenticated encryption and decryption (28B overhead) |
 | **Crypto Handshake** | `src/cipher/handshake.rs` | `SecureClientHandshakePacket` | Handshake with client static public key anonymization (92B) |
 | **Crypto Session** | `src/cipher/communication.rs` | `SecureDataPacket` | Encrypted message envelope for operational session data |
-| **Binary Suite** | `src/bin/prueba.rs` | Sequential 25-step execution | Full end-to-end integration and demonstration suite |
-| **Binary Spoofing** | `src/bin/prueba_call_spoofing.rs` | Isolated 60-second PoC | Thread suspension with `NtDelayExecution` via indirect syscall & stack spoofing |
+| **Binary Suite** | `examples/prueba.rs` | Sequential 25-step execution | Full end-to-end integration and demonstration suite |
+| **Binary Spoofing** | `examples/call_spoofing.rs` | Isolated 60-second PoC | Thread suspension with `NtDelayExecution` via indirect syscall & stack spoofing |
+
+---
+
+## License
+
+This project is dual-licensed under either:
+
+* **MIT License** ([LICENSE-MIT](LICENSE-MIT))
+* **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
+
+at your option. Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you shall be dual licensed as above, without any additional terms or conditions.
+

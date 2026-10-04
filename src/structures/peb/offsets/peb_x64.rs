@@ -1,10 +1,10 @@
 /// PEB field offsets for x64 (64-bit) Windows.
 ///
-/// Source: https://www.vergiliusproject.com/kernels/x64
+/// Source: <https://www.vergiliusproject.com/kernels/x64>
 ///
 /// Register access:
-///   GS:[0x60]  -> pointer to PEB (native x64 process)
-///   FS:[0x30]  -> pointer to PEB32 inside a WOW64 process
+///   `GS:[0x60]`  -> pointer to PEB (native x64 process)
+///   `FS:[0x30]`  -> pointer to PEB32 inside a WOW64 process
 ///
 /// Each sub-module covers the first build where that layout was introduced.
 /// Fields that did not change between releases are re-exported unchanged.
@@ -261,9 +261,9 @@ pub mod win10 {
     pub const SYSTEM_DEFAULT_ACTIVATION_CONTEXT_DATA: usize = 0x308;
     pub const SYSTEM_ASSEMBLY_STORAGE_MAP: usize = 0x310;
     pub const MINIMUM_STACK_COMMIT: usize = 0x318;
-    /// SparePointers[4] — FLS removed in Win10.
+    /// `SparePointers[4]` — FLS removed in Win10.
     pub const SPARE_POINTERS: usize = 0x320; // VOID*[4]
-    /// SpareUlongs[5].
+    /// `SpareUlongs[5]`.
     pub const SPARE_ULONGS: usize = 0x340; // ULONG[5]
     pub const WER_REGISTRATION_DATA: usize = 0x358;
     pub const WER_SHIP_ASSERT_PTR: usize = 0x360;
@@ -274,7 +274,7 @@ pub mod win10 {
     pub const CSR_SERVER_READ_ONLY_SHARED_MEMORY_BASE: usize = 0x380;
     pub const TPP_WORKER_P_LIST_LOCK: usize = 0x388; // ULONGLONG
     pub const TPP_WORKER_P_LIST: usize = 0x390; // _LIST_ENTRY (16 bytes)
-    /// VOID*[128] — 0x400 bytes.
+    /// `VOID*[128]` — 0x400 bytes.
     pub const WAIT_ON_ADDRESS_HASH_TABLE: usize = 0x3A0;
     pub const TELEMETRY_COVERAGE_HEADER: usize = 0x7A0;
     pub const CLOUD_FILE_FLAGS: usize = 0x7A8;
@@ -377,7 +377,7 @@ pub mod win11 {
     pub const SYSTEM_DEFAULT_ACTIVATION_CONTEXT_DATA: usize = 0x308;
     pub const SYSTEM_ASSEMBLY_STORAGE_MAP: usize = 0x310;
     pub const MINIMUM_STACK_COMMIT: usize = 0x318;
-    /// SparePointers[2] — shrunk from [4] in Win11.
+    /// `SparePointers[2]` — shrunk from `[4]` in Win11.
     pub const SPARE_POINTERS: usize = 0x320; // VOID*[2]
     /// New in Win11.
     pub const PATCH_LOADER_DATA: usize = 0x330; // VOID*
@@ -385,7 +385,7 @@ pub mod win11 {
     pub const CHPE_V2_PROCESS_INFO: usize = 0x338; // _CHPEV2_PROCESS_INFO*
     /// New in Win11.
     pub const APP_MODEL_FEATURE_STATE: usize = 0x340; // ULONG
-    /// SpareUlongs[2] — shrunk from [5].
+    /// `SpareUlongs[2]` — shrunk from `[5]`.
     pub const SPARE_ULONGS: usize = 0x344; // ULONG[2]
     /// New NLS fields in Win11.
     pub const ACTIVE_CODE_PAGE: usize = 0x34C; // USHORT

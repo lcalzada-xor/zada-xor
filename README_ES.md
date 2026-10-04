@@ -2,6 +2,11 @@
 
 > **Idiomas / Languages:** **Español** | [English](README.md)
 
+[![Crates.io](https://img.shields.io/crates/v/zada-xor.svg)](https://crates.io/crates/zada-xor)
+[![Documentation](https://docs.rs/zada-xor/badge.svg)](https://docs.rs/zada-xor)
+[![License](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue.svg)](Cargo.toml)
+[![Platform](https://img.shields.io/badge/platform-Windows%20(x64%20%7C%20x86)-lightgrey.svg)](Cargo.toml)
+
 **Zada-Xor** es un entorno de investigación en ingeniería inversa, análisis forense de memoria y seguridad ofensiva/defensiva implementado íntegramente en Rust. Su propósito fundamental reside en la interacción directa con el subsistema nativo de Windows NT (`ntoskrnl.exe` / `ntdll.dll`) en modo usuario (Ring 3), prescindiendo absolutamente de las bibliotecas de abstracción provistas por Microsoft para Rust (`windows`, `windows-sys` o `winapi`) y de parsers PE de terceros.
 
 El proyecto implementa desde cero primitivas para el análisis manual de estructuras ejecutables PE/PE32+, la navegación indetectable de las listas del cargador en el Bloque de Entorno del Proceso (PEB), la resolución dinámica de identificadores de servicios del sistema (SSN) mediante técnicas avanzadas de desmontaje en memoria (Hell's Gate / Halo's Gate), el despacho de llamadas indirectas al sistema (*Indirect Syscalls*) combinadas con falsificación sintética de la pila de llamadas (*Call Stack Spoofing*), y un canal criptográfico de grado de producción basado en el intercambio de claves Diffie-Hellman en Curve25519 y cifrado autenticado simétrico AEAD ChaCha20-Poly1305.
@@ -71,9 +76,9 @@ El proyecto implementa desde cero primitivas para el análisis manual de estruct
   - [Cifrado Simétrico Autenticado AEAD ChaCha20-Poly1305 (`cipher_data.rs`)](#cifrado-simétrico-autenticado-aead-chacha20-poly1305-cipher_datars)
     - [Estructura del Sobre de Datos (Payload Envelope)](#estructura-del-sobre-de-datos-payload-envelope)
   - [Protocolo de Handshake con Anonimización de Clave (`handshake.rs`)](#protocolo-de-handshake-con-anonimización-de-clave-handshakers)
-- [Binarios de Demostración y Validación (`src/bin/`)](#binarios-de-demostración-y-validación-srcbin)
-  - [1. `src/bin/prueba.rs`: Suite Integral de 25 Pasos](#1-srcbinpruebars-suite-integral-de-25-pasos)
-  - [2. `src/bin/prueba_call_spoofing.rs`: PoC Especializada](#2-srcbinprueba_call_spoofingrs-poc-especializada)
+- [Ejemplos de Demostración y Validación (`examples/`)](#ejemplos-de-demostración-y-validación-examples)
+  - [1. `examples/prueba.rs`: Suite Integral de 25 Pasos](#1-examplespruebars-suite-integral-de-25-pasos)
+  - [2. `examples/call_spoofing.rs`: PoC Especializada](#2-examplescall_spoofingrs-poc-especializada)
 - [Compilación, Optimización y Entornos de Laboratorio](#compilación-optimización-y-entornos-de-laboratorio)
   - [Perfil de Optimización en `Cargo.toml`](#perfil-de-optimización-en-cargotoml)
   - [Compilación Cruzada (Cross-Compilation para Windows)](#compilación-cruzada-cross-compilation-para-windows)
@@ -599,11 +604,15 @@ Para garantizar el anonimato:
 
 ---
 
-## Binarios de Demostración y Validación (`src/bin/`)
+## Ejemplos de Demostración y Validación (`examples/`)
 
-El repositorio incluye dos programas ejecutables diseñados para validar experimentalmente todos los componentes implementados.
+El repositorio incluye dos ejemplos diseñados para validar experimentalmente todos los componentes implementados. Ejecútalos mediante `cargo run --example <nombre>`:
 
-### 1. `src/bin/prueba.rs`: Suite Integral de 25 Pasos
+### 1. `examples/prueba.rs`: Suite Integral de 25 Pasos
+
+```bash
+cargo run --example prueba
+```
 
 Este binario ejecuta de forma secuencial una demostración de integración completa:
 
@@ -636,7 +645,11 @@ Este binario ejecuta de forma secuencial una demostración de integración compl
     - Extrae el SSN dinámico de `NtDelayExecution` mediante `get_dinamic_ssn`.
     - Ejecuta `indirect_syscall_6` con SSN dinámico y Call Stack Spoofing falsificando la pila con marcos `.pdata` de NTDLL.
 
-### 2. `src/bin/prueba_call_spoofing.rs`: PoC Especializada
+### 2. `examples/call_spoofing.rs`: PoC Especializada
+
+```bash
+cargo run --example call_spoofing
+```
 
 Este binario proporciona una verificación aislada y limpia de la evasión de pila:
 1. Define un retardo negativo de 60 segundos (`delay_interval = -(60 * 10_000_000)` en unidades de 100 nanosegundos).
@@ -745,5 +758,17 @@ WINEPREFIX=~/.wine32 WINEARCH=win32 wine target/i686-pc-windows-gnu/release/prue
 | **Cripto AEAD** | `src/cipher/cipher_data.rs` | `CipherData::cipher`, `CipherData::decipher` | Cifrado y descifrado autenticado ChaCha20-Poly1305 (28B overhead) |
 | **Cripto Handshake** | `src/cipher/handshake.rs` | `SecureClientHandshakePacket` | Handshake con anonimización de la clave pública estática del cliente (92B) |
 | **Cripto Sesión** | `src/cipher/communication.rs` | `SecureDataPacket` | Envoltorio de mensajes cifrados para tráfico de sesión |
-| **Binario Suite** | `src/bin/prueba.rs` | Flujo secuencial de 25 pasos | Demostración integral e integración end-to-end de todos los subsistemas |
-| **Binario Spoofing** | `src/bin/prueba_call_spoofing.rs` | PoC aislada de 60 segundos | Retardo de hilo con `NtDelayExecution` mediante indirect syscall y stack spoofing |
+| **Binario Suite** | `examples/prueba.rs` | Flujo secuencial de 25 pasos | Demostración integral e integración end-to-end de todos los subsistemas |
+| **Binario Spoofing** | `examples/call_spoofing.rs` | PoC aislada de 60 segundos | Retardo de hilo con `NtDelayExecution` mediante indirect syscall y stack spoofing |
+
+---
+
+## Licencia
+
+Este proyecto está distribuido bajo doble licencia, a su elección:
+
+* **Licencia MIT** ([LICENSE-MIT](LICENSE-MIT))
+* **Licencia Apache, Versión 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
+
+A menos que se indique explícitamente lo contrario, cualquier contribución enviada intencionadamente para su inclusión en este trabajo quedará sujeta a esta doble licencia sin términos ni condiciones adicionales.
+
