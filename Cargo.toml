@@ -1,10 +1,12 @@
 [package]
 name = "zada-xor"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2024"
 authors = ["Lucas Calzada <77804198+lcalzada-xor@users.noreply.github.com>"]
 description = "Zero-dependency Windows NT internals: manual PE/PEB parsing, dynamic SSN extraction (Hell's Gate), indirect syscalls, and synthetic call stack spoofing in pure Rust."
 license = "MIT OR Apache-2.0"
+homepage = "https://github.com/lcalzada-xor/zada-xor"
+documentation = "https://docs.rs/zada-xor"
 repository = "https://github.com/lcalzada-xor/zada-xor"
 readme = "README.md"
 keywords = ["syscalls", "stack-spoofing", "ntdll", "peb", "edr-evasion"]
