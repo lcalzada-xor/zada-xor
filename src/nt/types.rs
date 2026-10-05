@@ -17,6 +17,8 @@ pub type PWSTR = *mut u16;
 //Punteros
 pub type PVOID = *mut c_void;
 pub type PULONG = *mut u32;
+pub type PHANDLE = *mut HANDLE;
+
 
 //ERRORES NT
 pub const STATUS_INFO_LENGTH_MISMATCH: i32 = -1073741820; // 0xC0000004 en i32

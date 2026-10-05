@@ -29,14 +29,15 @@ use zada_xor::techniques::evasion::execution::dynamic_call::*;
 use zada_xor::techniques::evasion::execution::indirect_syscall::*;
 use zada_xor::techniques::evasion::memory::write_process_mem_rw_rx::*;
 use zada_xor::nt::kernel_objects::query_object::*;
+use zada_xor::nt::kernel_objects::duplicate_object::*;
 
 fn main() {
     let self_pid = std::process::id();
     println!("self_pid: {}", self_pid);
 
     println!(
-        "Hahs ntqueryobject: {:#x}",
-        unique_hash("NtQueryObject")
+        "Hahs NtDuplicateObject: {:#x}",
+        unique_hash("NtDuplicateObject")
     );
 
     match get_process_table() {
@@ -64,15 +65,16 @@ fn main() {
             return;
         }
     };
-
+    let mut iocp_idx: usize = 0;
     match query_kernel_object_index("IoCompletion") {
         Ok(idx) => {
             println!("[+] Index de IoCompletion: {}", idx);
+            iocp_idx = idx as usize;
         }
         Err(e) => println!("[!] query_kernel_object_index falló. Motivo: {}", e),
     }
 
-    match print_all_handles_info(handle) {
+    match print_all_handles_info(handle, iocp_idx) {
         Ok(_) => println!("[+] ¡ÉXITO! Handles obtenidos correctamente."),
         Err(e) => println!("[!] La prueba falló. Motivo: {}", e),
     }

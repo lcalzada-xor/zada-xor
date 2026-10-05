@@ -118,7 +118,7 @@ pub fn query_information_process(process_handle: HANDLE) -> Result<Vec<u8>, Stri
     Err("Se superó el límite de reintentos para obtener el búfer de handles".into())
 }
 
-pub fn print_all_handles_info(process_handle: HANDLE) -> Result<(), String> {
+pub fn print_all_handles_info(process_handle: HANDLE, idx_filter: usize) -> Result<(), String> {
     let buffer = query_information_process(process_handle)?;
 
     unsafe {
@@ -140,10 +140,19 @@ pub fn print_all_handles_info(process_handle: HANDLE) -> Result<(), String> {
             );
 
             for (idx, entry) in entries.iter().enumerate() {
-                println!(
-                    "  [Handle {}] Value: {:?}, Access: {:#X}, TypeIndex: {}",
-                    idx, entry.HandleValue, entry.GrantedAccess, entry.ObjectTypeIndex
-                );
+                if idx_filter > 0 && idx_filter as u32 == entry.ObjectTypeIndex {
+                    println!(
+                        "  [Handle {}] Value: {:?}, Access: {:#X}, TypeIndex: {}",
+                        idx, entry.HandleValue, entry.GrantedAccess, entry.ObjectTypeIndex
+                    );
+                }else if idx_filter == 0{
+                    println!(
+                        "  [Handle {}] Value: {:?}, Access: {:#X}, TypeIndex: {}",
+                        idx, entry.HandleValue, entry.GrantedAccess, entry.ObjectTypeIndex
+                    );
+                }
+
+                    
             }
         }
     }
