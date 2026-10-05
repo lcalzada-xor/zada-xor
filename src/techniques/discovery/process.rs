@@ -144,6 +144,8 @@ pub fn process_discovery() -> Result<Vec<ProcessInfo>, String> {
             &mut return_length as *mut usize as usize,
             0,
             0,
+            0,
+            0,
         )
         .unwrap_or(-1)
     };
@@ -175,6 +177,8 @@ pub fn process_discovery() -> Result<Vec<ProcessInfo>, String> {
             buffer_ptr as usize,
             buffer_size,
             &mut return_length as *mut usize as usize,
+            0,
+            0,
             0,
             0,
         )
@@ -252,4 +256,3 @@ pub fn get_process_table() -> Result<String, String> {
 
     Ok(output)
 }
-

@@ -69,6 +69,8 @@ pub fn nt_allocate_virtual_memory(
             &mut size_val as *mut SIZE_T as usize,
             (allocation_type as u32) as usize,
             protect as usize,
+            0,
+            0
         );
 
         match status {

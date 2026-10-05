@@ -7,7 +7,7 @@ pub fn nt_close(handle: HANDLE) -> Result<(), String> {
     let ssn = get_dinamic_ssn(hash_nt_close)?;
 
     unsafe {
-        let status = indirect_syscall_6(hash_nt_close, ssn, handle as usize, 0, 0, 0, 0, 0);
+        let status = indirect_syscall_6(hash_nt_close, ssn, handle as usize, 0, 0, 0, 0, 0, 0, 0);
 
         match status {
             Ok(0) => Ok(()),

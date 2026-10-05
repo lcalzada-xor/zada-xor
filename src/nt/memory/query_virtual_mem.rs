@@ -82,6 +82,8 @@ pub fn nt_query_virtual_memory(
             &mut mem_basic_info as *mut MEMORY_BASIC_INFORMATION as usize,
             std::mem::size_of::<MEMORY_BASIC_INFORMATION>(),
             0,
+            0,
+            0
         );
 
         match status {

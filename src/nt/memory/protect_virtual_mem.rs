@@ -74,6 +74,8 @@ pub fn nt_protect_virtual_memory(
             new_protect as usize,
             &mut old_protect as *mut u32 as usize,
             0,
+            0,
+            0
         );
 
         match status {

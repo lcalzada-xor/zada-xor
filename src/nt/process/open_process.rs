@@ -101,6 +101,8 @@ pub fn open_process(pid: u32, desired_access: u32) -> Result<HANDLE, String> {
             &client_id as *const CLIENT_ID as usize,
             0,
             0,
+            0,
+            0
         );
 
         match status {

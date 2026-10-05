@@ -90,6 +90,8 @@ pub fn query_information_process(process_handle: HANDLE) -> Result<Vec<u8>, Stri
                 buffer.len(),
                 &mut required_length as *mut u32 as usize,
                 0,
+                0,
+                0
             )?;
 
             match status as u32 {

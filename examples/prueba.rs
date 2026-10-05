@@ -65,11 +65,11 @@ fn main() {
         }
     };
 
-    match query_object_size_solved(handle, OBJECT_INFORMATION_CLASS::ObjectTypesInformation) {
-        Ok(bytes) => {
-            unsafe {println!("[+] Bytes recibidos de query_object_size_solved: {:#?}", &*(bytes.as_ptr() as *const OBJECT_TYPES_INFORMATION))}
+    match query_kernel_object_index("IoCompletion") {
+        Ok(idx) => {
+            println!("[+] Index de IoCompletion: {}", idx);
         }
-        Err(e) => println!("[!] query_object_size_solved falló. Motivo: {}", e),
+        Err(e) => println!("[!] query_kernel_object_index falló. Motivo: {}", e),
     }
 
     match print_all_handles_info(handle) {
@@ -410,6 +410,8 @@ fn main() {
             0,
             0,
             0,
+            0,
+            0
         );
 
         match status {

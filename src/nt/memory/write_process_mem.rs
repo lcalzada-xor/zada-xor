@@ -29,6 +29,8 @@ pub fn nt_write_virtual_memory(
             data.len(),
             &mut number_of_bytes_written as *mut usize as usize,
             0,
+            0,
+            0
         );
 
         match status {

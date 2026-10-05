@@ -26,6 +26,8 @@ pub fn nt_read_virtual_memory(
             bytes_to_read,
             &mut number_of_bytes_read as *mut usize as usize,
             0,
+            0,
+            0
         );
 
         match status {

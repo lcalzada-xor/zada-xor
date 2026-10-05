@@ -57,7 +57,15 @@ pub struct SpoofData {
     pub pos4: usize,
     pub fn_addr_4: usize, //gadget 2 addr (random gadget) - ancla
     pub null_ret_offset: usize,
+
+    // --- Campos añadidos para 8 args ---
+    pub a5: usize,              // 0x50: Argumento 5
+    pub a6: usize,              // 0x58: Argumento 6
+    pub a7: usize,              // 0x60: Argumento 7
+    pub a8: usize,              // 0x68: Argumento 8
+
     pub anchor_register: Reg, // registro ancla seleccionado (del gadget 2)
+
 }
 
 #[repr(C)]
@@ -129,6 +137,12 @@ pub fn prepare_spoof_data() -> Result<SpoofData, String> {
     final_offset = (final_offset + 15) & !15;
     final_offset += 8;
 
+    let a5: usize = 0;
+    let a6: usize = 0;
+    let a7: usize = 0;
+    let a8: usize = 0;
+
+
     Ok(SpoofData {
         final_offset,
         pos1,
@@ -140,12 +154,17 @@ pub fn prepare_spoof_data() -> Result<SpoofData, String> {
         pos4,
         fn_addr_4: func4_addr_gadget_1,
         null_ret_offset,
-        anchor_register,
+        a5,
+        a6,
+        a7,
+        a8,
+        anchor_register  
     })
 }
 
 pub fn prepare_gadget_spoof_data(dll_base: *const u8) -> Option<Gadgets> {
-    let func_arg_size = 0x38; // esto es constante, para una llamada con 2 args pusheados a la pila y 4 registros guardados se necesita limpiar esa cantidad de bytes
+    //let func_arg_size = 0x38; // esto es constante, para una llamada con 2 args pusheados a la pila y 4 registros guardados se necesita limpiar esa cantidad de bytes
+    let func_arg_size = 0x48; // esto es constante, para una llamada con 4 args pusheados a la pila y 4 registros guardados se necesita limpiar esa cantidad de bytes
     let pattern_gadget_1: &[&[u8]] = &[&[0x48, 0x83, 0xC4, func_arg_size, 0xC3]]; // ADD RSP, 0x38; RET
     let finded_addr_gadget_1;
     #[cfg(debug_assertions)]

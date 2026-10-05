@@ -3,6 +3,9 @@
 
 use crate::techniques::evasion::execution::dinamic_ssn::get_dinamic_ssn;
 use crate::techniques::evasion::execution::indirect_syscall::indirect_syscall_6;
+use std::mem::size_of;
+use std::ptr::null_mut;
+
 
 use crate::nt::types::{
     ACCESS_MASK, BOOLEAN, CHAR, GENERIC_MAPPING, HANDLE, LARGE_INTEGER, PULONG, PVOID, UCHAR,
@@ -120,6 +123,8 @@ pub fn nt_query_object(
             object_info_lenght as usize,
             return_length as usize,
             0,
+            0,
+            0
         );
 
         match status {
@@ -209,4 +214,55 @@ pub fn query_object_size_solved(
     }
 
     Err("Se superó el límite de reintentos para NtQueryObject".to_string())
+}
+
+#[inline]
+fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
+}
+
+pub fn query_kernel_object_index(name: &str) -> Result<u32, String> {
+    let bytes = query_object_size_solved(null_mut(), OBJECT_INFORMATION_CLASS::ObjectTypesInformation)
+        .map_err(|e| format!("query_object_size_solved falló: {}", e))?;
+
+    let types_kernel_objects = bytes.as_ptr() as *const OBJECT_TYPES_INFORMATION;
+
+    unsafe {
+        let number_of_types = (*types_kernel_objects).NumberOfTypes;
+        let mut current_entry_ptr = &(*types_kernel_objects).TypeInformation[0] as *const OBJECT_TYPE_INFORMATION;
+
+        for i in 0..number_of_types {
+            let entry = &*current_entry_ptr;
+
+            let type_name = if !entry.TypeName.Buffer.is_null() && entry.TypeName.Length > 0 {
+                let slice = core::slice::from_raw_parts(
+                    entry.TypeName.Buffer,
+                    (entry.TypeName.Length as usize) / 2,
+                );
+                String::from_utf16_lossy(slice)
+            } else {
+                String::new()
+            };
+
+            if type_name.eq_ignore_ascii_case(name) {
+                let index = if entry.TypeIndex != 0 {
+                    entry.TypeIndex as u32
+                } else {
+                    i
+                };
+                return Ok(index);
+            }
+
+            let next_addr = (current_entry_ptr as usize)
+                + size_of::<OBJECT_TYPE_INFORMATION>()
+                + entry.TypeName.MaximumLength as usize;
+
+            current_entry_ptr = align_up(next_addr, size_of::<usize>()) as *const OBJECT_TYPE_INFORMATION;
+        }
+
+        Err(format!(
+            "query_kernel_object_index no encontró ningún índice válido para el objeto: {}",
+            name
+        ))
+    }
 }
