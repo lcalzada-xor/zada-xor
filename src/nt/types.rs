@@ -6,13 +6,16 @@ use std::ffi::c_void;
 pub type HANDLE = *mut c_void;
 pub type SIZE_T = usize;
 
-pub type ULONG = u32;
+pub type UINT8 = u8;
+pub type ULONG = u32; //32b
+pub type ULONGLONG = u64;
 pub type LONG = i32;
 pub type USHORT = u16;
 pub type UCHAR = u8;
 pub type CHAR = i8;
 pub type BOOLEAN = u8;
 pub type PWSTR = *mut u16;
+pub type NTSTATUS = i32;
 
 //Punteros
 pub type PVOID = *mut c_void;
@@ -22,6 +25,14 @@ pub type PHANDLE = *mut HANDLE;
 
 //ERRORES NT
 pub const STATUS_INFO_LENGTH_MISMATCH: i32 = -1073741820; // 0xC0000004 en i32
+
+//Listas
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct LIST_ENTRY {
+    pub Flink: *mut LIST_ENTRY,
+    pub Blink: *mut LIST_ENTRY,
+}
 
 // Access rights mask (DWORD)
 pub type ACCESS_MASK = u32;

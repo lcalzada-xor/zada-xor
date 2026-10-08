@@ -49,6 +49,7 @@ The project implements from scratch primitives for manual parsing of PE/PE32+ ex
     - [`close.rs`](#closers)
     - [`query_object.rs`](#query_objectrs)
     - [`duplicate_object.rs`](#duplicate_objectrs)
+    - [`set_io_completion.rs`](#set_io_completionrs)
   - [Advanced Virtual Memory Management (`src/nt/memory/`)](#advanced-virtual-memory-management-srcntmemory)
     - [`virtual_alloc.rs`](#virtual_allocrs)
     - [`read_process_mem.rs` and `write_process_mem.rs`](#read_process_memrs-and-write_process_memrs)
@@ -61,8 +62,9 @@ The project implements from scratch primitives for manual parsing of PE/PE32+ ex
   - [Dynamic API Resolution (`src/techniques/evasion/dinamic_api_resolution.rs`)](#dynamic-api-resolution-srctechniquesevasiondinamic_api_resolutionrs)
   - [Dynamic SSN Extraction: Hell's Gate and Halo's Gate (`src/techniques/evasion/execution/dinamic_ssn.rs`)](#dynamic-ssn-extraction-hells-gate-and-halos-gate-srctechniquesevasionexecutiondinamic_ssnrs)
   - [Direct Syscall Dispatch (`src/techniques/evasion/execution/direct_syscall.rs`)](#direct-syscall-dispatch-srctechniquesevasionexecutiondirect_syscallrs)
+  - [PoolParty Shellcode Execution via IOCP (`execute_poolparty_shellcode.rs`)](#poolparty-shellcode-execution-via-iocp-execute_poolparty_shellcoders)
 - [Advanced Evasion: Indirect Syscalls and Call Stack Spoofing](#advanced-evasion-indirect-syscalls-and-call-stack-spoofing)
-  - [Indirect Jump to `ntdll.dll`](#indirect-jump-to-ntdlldll)
+  - [Indirect Jump to `ntdll.dll` (Up to 8 Arguments)](#indirect-jump-to-ntdlldll-up-to-8-arguments)
   - [Call Stack Spoofing](#call-stack-spoofing)
     - [1. Decoding `.pdata` and `UNWIND_INFO` (`unwind_info.rs`)](#1-decoding-pdata-and-unwind_info-unwind_infors)
     - [2. Locating Gadgets in NTDLL](#2-locating-gadgets-in-ntdll)
@@ -134,8 +136,9 @@ zada-xor/
 │   │   ├── kernel_objects/                 # Kernel object lifecycle management
 │   │   │   ├── mod.rs
 │   │   │   ├── close.rs                    # Indirect invocation of NtClose
-│   │   │   ├── duplicate_object.rs         # Planned stub for NtDuplicateObject
-│   │   │   └── query_object.rs             # NtQueryObject with dynamic buffer resizing
+│   │   │   ├── duplicate_object.rs         # NtDuplicateObject handle duplication wrapper
+│   │   │   ├── query_object.rs             # NtQueryObject with dynamic buffer resizing
+│   │   │   └── set_io_completion.rs        # NtSetIoCompletion for queuing I/O completion packets
 │   │   └── memory/                         # Advanced virtual memory management and scanning
 │   │       ├── mod.rs
 │   │       ├── virtual_alloc.rs            # NtAllocateVirtualMemory (MEM_COMMIT, MEM_RESERVE)
@@ -178,7 +181,8 @@ zada-xor/
 │           │   ├── dinamic_ssn.rs          # Dynamic SSN extraction and EDR hook detection
 │           │   ├── direct_syscall.rs       # Direct syscalls via inline assembly (x64 and x86)
 │           │   ├── dynamic_call.rs         # Stdcall and cdecl dynamic wrappers by name or hash
-│           │   ├── indirect_syscall.rs     # Indirect syscalls combined with Call Stack Spoofing
+│           │   ├── execute_poolparty_shellcode.rs # PoolParty execution technique via IOCP (NtSetIoCompletion)
+│           │   ├── indirect_syscall.rs     # Indirect syscalls (up to 8 args) with Call Stack Spoofing
 │           │   └── normal_call.rs          # Typed arity-based invocation of cdecl and stdcall pointers
 │           ├── memory/                     # Stealthy memory manipulation
 │           │   ├── mod.rs
@@ -333,9 +337,19 @@ Defines native primitive kernel types: `HANDLE`, `SIZE_T`, `ULONG`, `LONG`, `ACC
 - **Probing and Dynamic Sizing:**
   - `query_object_find_struct_size`: Performs an initial probe with a null buffer and size 0, capturing `STATUS_INFO_LENGTH_MISMATCH` (`0xC0000004`) or `STATUS_BUFFER_TOO_SMALL` (`0xC0000023`) to discover the exact buffer size required by the kernel.
   - `query_object_size_solved`: Manages an allocation loop of up to 20 retries with headroom until successfully querying object types (`OBJECT_TYPES_INFORMATION`).
+  - `query_kernel_object_index`: Iterates over returned `OBJECT_TYPES_INFORMATION` headers, dynamic strings (`OBJECT_TYPE_INFORMATION`), and indexes to locate the numerical object type index (e.g. for `"IoCompletion"` objects).
+  - `return_first_handle_maching_kernel_object_idx`: Cross-references process handle table snapshots (`NtQueryInformationProcess`) with target object indices to discover target handle values.
 
 #### `duplicate_object.rs`
-- **Audit Status:** Currently contains the commented placeholder declaration `// Implementación futura de NtDuplicateObject`. It is cataloged as a planned capability for future development iterations.
+- **API Hash:** `0x8f9a8420` (`NtDuplicateObject`).
+- **Handle Duplication:** Wraps `NtDuplicateObject` to clone open kernel handles between source and target processes without calling Win32 APIs like `DuplicateHandle`.
+- **Options & Attributes:** Supports standard flags including `DUPLICATE_CLOSE_SOURCE` (`0x00000001`), `DUPLICATE_SAME_ACCESS` (`0x00000002`), `DUPLICATE_SAME_ATTRIBUTES` (`0x00000004`), as well as object attributes (`OBJ_INHERIT`, `OBJ_EXCLUSIVE`, `OBJ_KERNEL_HANDLE`). Required when obtaining handle access across process boundaries (e.g., duplicating process or IOCP handles).
+
+#### `set_io_completion.rs`
+- **API Hash:** `0x6041e7aa` (`NtSetIoCompletion`).
+- **I/O Completion Port Primitive:** Directly posts completion packets into an active Windows I/O Completion Port (IOCP) object handle.
+- **Native Thread Pool Structures:** Defines undocumented low-level thread pool execution structures including `TP_TASK_CALLBACKS`, `TP_TASK`, and `TP_DIRECT`.
+- **Low-Level Mechanics:** When an application uses Thread Pool I/O completion ports, passing a pointer to a forged `TP_DIRECT` structure in `KeyContext` forces worker threads in the host process to dispatch execution to `TP_DIRECT.callback` upon dequeuing the completion packet. This primitive serves as the cornerstone for the PoolParty injection vector.
 
 ### Advanced Virtual Memory Management (`src/nt/memory/`)
 
@@ -438,6 +452,19 @@ Hardcoding System Service Numbers (SSN) is fragile because Microsoft frequently 
 ### Direct Syscall Dispatch (`src/techniques/evasion/execution/direct_syscall.rs`)
 Implements `direct_syscall_6` using inline assembly for x64 (setting up the 32-byte shadow space, fifth and sixth arguments on the stack, and the `syscall` instruction) and for x86 (pushing arguments and executing `sysenter`).
 
+### PoolParty Shellcode Execution via IOCP (`execute_poolparty_shellcode.rs`)
+
+The `execute_poolparty_shellcode` module implements a Process Injection technique leveraging Windows Thread Pool I/O Completion Ports (IOCP). Traditional injection methods rely on creating remote threads (`NtCreateThreadEx`) or altering thread execution contexts (`NtSetContextThread`), both of which generate conspicuous kernel telemetry (ETW-Ti) and trigger EDR behavioral rules.
+
+**Execution Lifecycle:**
+1. **Process Handle Acquisition:** Opens a handle to the target process with `PROCESS_DUP_HANDLE | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_QUERY_INFORMATION`.
+2. **IOCP Handle Discovery:** Enumerates open handles in the target process using `query_kernel_object_index` and `return_first_handle_maching_kernel_object_idx` to locate the first handle corresponding to an `"IoCompletion"` object type.
+3. **Handle Duplication:** Duplicates the target process's IOCP handle into the current process space using `nt_duplicate_object`.
+4. **RW $\rightarrow$ RX Payload Allocation:** Writes the target shellcode into remote process memory using stealthy `write_process_mem_rw_rx` (RW allocation, payload write, RX transition).
+5. **Crafting Undocumented Thread Pool Structures:** Synthesizes a native `TP_DIRECT` structure in remote process memory, setting `TP_DIRECT.callback` to point to the allocated shellcode.
+6. **Triggering Execution via `NtSetIoCompletion`:** Posts a completion packet to the duplicated IOCP handle via `nt_set_io_completion`, passing the remote `TP_DIRECT` address in `KeyContext`. A worker thread from the target process's thread pool dequeues the completion packet and executes `TP_DIRECT.callback`, running the payload cleanly within a legitimate thread pool worker.
+7. **Cleanup:** Closes duplicated handles and remote process handles using `nt_close`.
+
 ---
 
 ## Advanced Evasion: Indirect Syscalls and Call Stack Spoofing
@@ -446,10 +473,19 @@ When an application invokes a `syscall` instruction directly from its own privat
 
 To neutralize this telemetry vector, `zada-xor` pairs **Indirect Syscalls** with **Synthetic Call Stack Spoofing** guided by `.pdata` exception metadata.
 
-### Indirect Jump to `ntdll.dll`
+### Indirect Jump to `ntdll.dll` (Up to 8 Arguments)
 Instead of executing `syscall` within private memory:
 1. A legitimate `syscall; ret` instruction sequence (`0x0F, 0x05, 0xC3`) is located inside the target function in `ntdll.dll` using `find_pattern_in_specific_func`.
-2. An unconditional `jmp` directs execution to that instruction within NTDLL. As a result, the processor's `RIP` register during the transition to Ring 0 legitimately belongs to Microsoft's digitally signed NTDLL code segment.
+2. The invocation primitive (`indirect_syscall_6`, expanded to support up to **8 arguments**: `a1`..`a8`) sets up the Microsoft x64 calling convention:
+   - `a1` $\rightarrow$ `rcx` / `r10`
+   - `a2` $\rightarrow$ `rdx`
+   - `a3` $\rightarrow$ `r8`
+   - `a4` $\rightarrow$ `r9`
+   - `a5` $\rightarrow$ `rsp + 0x28`
+   - `a6` $\rightarrow$ `rsp + 0x30`
+   - `a7` $\rightarrow$ `rsp + 0x38`
+   - `a8` $\rightarrow$ `rsp + 0x40`
+3. An unconditional `jmp` directs execution to that `syscall; ret` sequence within NTDLL. As a result, the processor's `RIP` register during the transition to Ring 0 legitimately belongs to Microsoft's digitally signed NTDLL code segment.
 
 ### Call Stack Spoofing
 
@@ -724,8 +760,9 @@ WINEPREFIX=~/.wine32 WINEARCH=win32 wine target/i686-pc-windows-gnu/release/prue
 | **NT Process** | `src/nt/process/open_process.rs` | `open_process`, `DESIRED_ACCESS`, `CLIENT_ID`, `OBJECT_ATTRIBUTES` | Native process opening via `NtOpenProcess` (0xaddc1c2e) |
 | **NT Process** | `src/nt/process/query_information_process.rs` | `query_information_process`, `print_all_handles_info` | Handle enumeration via `NtQueryInformationProcess` (0x6fa0c1f4) |
 | **Kernel Objects** | `src/nt/kernel_objects/close.rs` | `nt_close` | Kernel handle teardown via `NtClose` (0x1c0fcdc4) |
-| **Kernel Objects** | `src/nt/kernel_objects/duplicate_object.rs` | Commented placeholder | Planned stub for `NtDuplicateObject` |
-| **Kernel Objects** | `src/nt/kernel_objects/query_object.rs` | `query_object_find_struct_size`, `query_object_size_solved` | Dynamic object inspection via `NtQueryObject` (0xfc2a599c) |
+| **Kernel Objects** | `src/nt/kernel_objects/duplicate_object.rs` | `nt_duplicate_object` | Handle cloning between processes via `NtDuplicateObject` (0x8f9a8420) |
+| **Kernel Objects** | `src/nt/kernel_objects/query_object.rs` | `query_object_find_struct_size`, `query_kernel_object_index` | Dynamic object inspection via `NtQueryObject` (0xfc2a599c) |
+| **Kernel Objects** | `src/nt/kernel_objects/set_io_completion.rs` | `nt_set_io_completion`, `TP_DIRECT` | Posting completion packets into IOCP via `NtSetIoCompletion` (0x6041e7aa) |
 | **NT Memory** | `src/nt/memory/virtual_alloc.rs` | `nt_allocate_virtual_memory`, `AllocationType`, `PageProtection` | Memory allocation via `NtAllocateVirtualMemory` (0x2759addf) |
 | **NT Memory** | `src/nt/memory/read_process_mem.rs` | `nt_read_virtual_memory` | Remote memory read via `NtReadVirtualMemory` (0x7a58c6ca) |
 | **NT Memory** | `src/nt/memory/write_process_mem.rs` | `nt_write_virtual_memory` | Remote memory write via `NtWriteVirtualMemory` (0x7f603ee9) |
@@ -748,9 +785,10 @@ WINEPREFIX=~/.wine32 WINEARCH=win32 wine target/i686-pc-windows-gnu/release/prue
 | **SSN Opcodes** | `src/techniques/evasion/syscall_opcodes.rs` | Windows 10 x64 SSN constants | Reference catalog for static validation of system services |
 | **Dynamic SSN** | `src/techniques/evasion/execution/dinamic_ssn.rs` | `get_dinamic_ssn` | Runtime SSN extraction in NTDLL and hook detection (INT3 / NOP) |
 | **Direct Syscalls** | `src/techniques/evasion/execution/direct_syscall.rs` | `direct_syscall_6` | Direct inline assembly invocation (`syscall` / `sysenter`) |
+| **PoolParty Injection** | `src/techniques/evasion/execution/execute_poolparty_shellcode.rs` | `execute_poolparty_shellcode` | Covert process injection via IOCP (`NtSetIoCompletion`) and thread pool |
 | **Dynamic Invocation** | `src/techniques/evasion/execution/dynamic_call.rs` | `dynamic_stdcall_by_name`, `dynamic_cdecl_by_name` | NTDLL function invocation wrappers by name or hash |
 | **Normal Calls** | `src/techniques/evasion/execution/normal_call.rs` | `call_cdecl`, `call_stdcall` | Arity-based call dispatcher (0 to 10 args) adapted for x86 and x64 |
-| **Indirect Syscalls** | `src/techniques/evasion/execution/indirect_syscall.rs` | `indirect_syscall_6` | Indirect dispatch to `syscall; ret` gadget in NTDLL with stack spoofing |
+| **Indirect Syscalls** | `src/techniques/evasion/execution/indirect_syscall.rs` | `indirect_syscall_6` | Indirect dispatch (up to 8 args) to `syscall; ret` gadget in NTDLL with stack spoofing |
 | **Synthetic Stack** | `src/techniques/evasion/stack_spoofing/call_stack_spoofing.rs` | `prepare_spoof_data`, `SpoofData` | Synthetic frame assembly with `RtlUserThreadStart`, `BaseThreadInitThunk`, and gadgets |
 | **Unwind Info** | `src/techniques/evasion/stack_spoofing/unwind_info.rs` | `get_unwind_offsets`, `parse_pdata_entry` | `.pdata` directory decoding and x64 `UNWIND_INFO` opcode parsing |
 | **Evasion Memory** | `src/techniques/evasion/memory/write_process_mem_rw_rx.rs` | `write_process_mem_rw_rx` | Remote memory injection via RW $\rightarrow$ RX transition cycle |

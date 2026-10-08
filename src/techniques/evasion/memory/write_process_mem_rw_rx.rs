@@ -4,7 +4,7 @@ use crate::nt::memory::protect_virtual_mem::{MemoryProtection, nt_protect_virtua
 use crate::nt::memory::virtual_alloc::{AllocationType, PageProtection, nt_allocate_virtual_memory};
 
 
-pub fn write_process_mem_rw_rx(handle: HANDLE, bytes_to_write: &[u8]) -> Result<(), String> {
+pub fn write_process_mem_rw_rx(handle: HANDLE, bytes_to_write: &[u8]) -> Result<usize, String> {
 
     let allocated_addr = nt_allocate_virtual_memory(
         handle,
@@ -44,5 +44,5 @@ pub fn write_process_mem_rw_rx(handle: HANDLE, bytes_to_write: &[u8]) -> Result<
     println!("[+] Memoria protegida a RX: {:#x}", allocated_addr);
 
 
-    Ok(())
+    Ok(allocated_addr)
 }

@@ -103,6 +103,8 @@ pub struct OBJECT_HANDLE_FLAG_INFORMATION {
     pub ProtectFromClose: BOOLEAN,
 }
 
+//https://ntdoc.m417z.com/ntqueryobject
+
 pub fn nt_query_object(
     kernel_handle: HANDLE,
     object_info_class: OBJECT_INFORMATION_CLASS,
@@ -135,6 +137,8 @@ pub fn nt_query_object(
     }
 }
 
+//Antes de procesar la respuesta, necesitamos cerciorarnos del tamaño del object info pedido
+
 pub fn query_object_find_struct_size(
     handle: HANDLE,
     object_info_class: OBJECT_INFORMATION_CLASS,
@@ -155,8 +159,10 @@ pub fn query_object_find_struct_size(
             }
         }
         Err(e) => {
+            #[cfg(debug_assertions)]
             println!("[+] NtQueryObject falló: {}", e);
             if (e.contains("C0000004") || e.contains("C0000023")) && return_length > 0 {
+                #[cfg(debug_assertions)]
                 println!(
                     "[+] Encontrado el tamaño de object_information: {}",
                     return_length
@@ -169,6 +175,8 @@ pub fn query_object_find_struct_size(
     }
 }
 
+// se divide en dos partes, una para pedir la size del object info y luego hace la query con el tamaño del buffer adecuado para la respuesta
+
 pub fn query_object_size_solved(
     handle: HANDLE,
     object_info_class: OBJECT_INFORMATION_CLASS,
@@ -180,7 +188,7 @@ pub fn query_object_size_solved(
     let mut current_size = initial_size;
     const MAX_ATTEMPTS: usize = 20;
 
-    for _ in 0..MAX_ATTEMPTS {
+    for _ in 0..MAX_ATTEMPTS { // metemos un loop aqui por que a veces initial_size no nos devuelve el size real, por eso como fallback llamamos en loop aumentando el buffer hasta que cuele
         let mut buffer = vec![0u8; current_size as usize];
         let mut return_length: u32 = 0;
 
@@ -220,6 +228,8 @@ pub fn query_object_size_solved(
 fn align_up(addr: usize, align: usize) -> usize {
     (addr + align - 1) & !(align - 1)
 }
+
+//funcion necesaria para encontrar el index de un kernel obj en concreto
 
 pub fn query_kernel_object_index(name: &str) -> Result<u32, String> {
     let bytes = query_object_size_solved(null_mut(), OBJECT_INFORMATION_CLASS::ObjectTypesInformation)

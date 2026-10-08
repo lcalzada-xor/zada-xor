@@ -159,3 +159,37 @@ pub fn print_all_handles_info(process_handle: HANDLE, idx_filter: usize) -> Resu
 
     Ok(())
 }
+
+pub fn return_first_handle_maching_kernel_object_idx(process_handle: HANDLE, idx_filter: usize) -> Result<PROCESS_HANDLE_TABLE_ENTRY_INFO, String> {
+    let buffer = query_information_process(process_handle)?;
+
+    unsafe {
+        let handle_info_ptr = buffer.as_ptr() as PPROCESS_HANDLE_SNAPSHOT_INFORMATION;
+        if handle_info_ptr.is_null() {
+            return Err("El puntero obtenido es nulo".into());
+        }
+
+        let handle_info = &*handle_info_ptr;
+
+        #[cfg(debug_assertions)]
+        println!(
+            "[+] Número de handles encontrados: {}, se procede a filtrar el idx: {}",
+            handle_info.NumberOfHandles, idx_filter
+        );
+
+        if handle_info.NumberOfHandles > 0 {
+            let entries = std::slice::from_raw_parts(
+                handle_info.Handles.as_ptr(),
+                handle_info.NumberOfHandles,
+            );
+
+            for (_idx, entry) in entries.iter().enumerate() {
+                if idx_filter as u32 == entry.ObjectTypeIndex {
+                    return Ok(*entry)
+                }                    
+            }
+        }
+    }
+
+    Err(format!("[!] No se ha encontrado ningun handle para el kernel object idx {} en el proceso.", idx_filter))
+}
