@@ -3,7 +3,7 @@ use crate::nt::memory::write_process_mem::nt_write_virtual_memory;
 use crate::nt::memory::protect_virtual_mem::{MemoryProtection, nt_protect_virtual_memory};
 use crate::nt::memory::virtual_alloc::{AllocationType, PageProtection, nt_allocate_virtual_memory};
 
-
+//tengo entendido que hay una tecnica mejor que esta, se trata de asignar rw en el proceso local y luego cambiar la proteccion a rx en el proceso remoto, esto evita que el proceso remoto tenga rw y pueda ser detectado por AVs
 pub fn write_process_mem_rw_rx(handle: HANDLE, bytes_to_write: &[u8]) -> Result<usize, String> {
 
     let allocated_addr = nt_allocate_virtual_memory(

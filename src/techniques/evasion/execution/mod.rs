@@ -4,3 +4,4 @@ pub mod dynamic_call;
 pub mod indirect_syscall;
 pub mod normal_call;
 pub mod execute_poolparty_shellcode;
+pub mod user_mode_call;

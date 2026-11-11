@@ -41,7 +41,7 @@ The project implements from scratch primitives for manual parsing of PE/PE32+ ex
     - [Loader Structures (`_PEB_LDR_DATA` and `_LDR_DATA_TABLE_ENTRY`)](#loader-structures-_peb_ldr_data-and-_ldr_data_table_entry)
     - [Circular Navigation with `_LIST_ENTRY` and `Iterator` Trait](#circular-navigation-with-_list_entry-and-iterator-trait)
 - [Native NT Subsystem (`src/nt/`)](#native-nt-subsystem-srcnt)
-  - [NT Kernel Types (`src/nt/types.rs`)](#nt-kernel-types-srcnttypesrs)
+  - [NT Kernel Types and Compile-Time Macros (`src/nt/types.rs`)](#nt-kernel-types-and-compile-time-macros-srcnttypesrs)
   - [Process Management (`src/nt/process/`)](#process-management-srcntprocess)
     - [`open_process.rs`](#open_processrs)
     - [`query_information_process.rs`](#query_information_processrs)
@@ -56,6 +56,8 @@ The project implements from scratch primitives for manual parsing of PE/PE32+ ex
     - [`protect_virtual_mem.rs`](#protect_virtual_memrs)
     - [`query_virtual_mem.rs`](#query_virtual_memrs)
     - [`pattern_scan_mem.rs`: Signature Scanning and `.pdata` Boundary Delimitation](#pattern_scan_memrs-signature-scanning-and-pdata-boundary-delimitation)
+  - [Native Module Loading (`src/nt/loader/`)](#native-module-loading-srcntloader)
+    - [`ldr_load_dll.rs`](#ldr_load_dllrs)
 - [Evasion and Discovery Techniques (`src/techniques/`)](#evasion-and-discovery-techniques-srctechniques)
   - [API Hashing and Static Obfuscation (`src/techniques/evasion/api_hashing.rs`)](#api-hashing-and-static-obfuscation-srctechniquesevasionapi_hashingrs)
     - [Precalculated Hashes and Constants](#precalculated-hashes-and-constants)
@@ -69,17 +71,22 @@ The project implements from scratch primitives for manual parsing of PE/PE32+ ex
     - [1. Decoding `.pdata` and `UNWIND_INFO` (`unwind_info.rs`)](#1-decoding-pdata-and-unwind_info-unwind_infors)
     - [2. Locating Gadgets in NTDLL](#2-locating-gadgets-in-ntdll)
     - [3. Synthetic Stack Layout at Runtime](#3-synthetic-stack-layout-at-runtime)
+  - [User-Mode Invocations with Call Stack Spoofing (`user_mode_call.rs`)](#user-mode-invocations-with-call-stack-spoofing-user_mode_callrs)
 - [Complementary Invocation and Memory Techniques](#complementary-invocation-and-memory-techniques)
   - [Stealthy RW $\rightarrow$ RX Memory Injection (`write_process_mem_rw_rx.rs`)](#stealthy-rw-rightarrow-rx-memory-injection-write_process_mem_rw_rxrs)
   - [Dynamic Invocation Wrappers (`dynamic_call.rs` and `normal_call.rs`)](#dynamic-invocation-wrappers-dynamic_callrs-and-normal_callrs)
   - [Process Discovery and Introspection (`src/techniques/discovery/process.rs`)](#process-discovery-and-introspection-srctechniquesdiscoveryprocessrs)
+- [User-Mode DLL Subsystem (`src/miscdll/`)](#user-mode-dll-subsystem-srcmiscdll)
+  - [WinHTTP Modular Subsystem (`src/miscdll/winhttp/`)](#winhttp-modular-subsystem-srcmiscdllwinhttp)
+- [Covert Network Client Subsystem (`src/net/`)](#covert-network-client-subsystem-srcnet)
+  - [End-to-End HTTP/HTTPS Client (`net_req_and_response.rs`)](#end-to-end-httphttps-client-net_req_and_responsers)
 - [Cryptographic Subsystem and Secure Channel (`src/cipher/`)](#cryptographic-subsystem-and-secure-channel-srccipher)
   - [Asymmetric Identity Management (`keys.rs`)](#asymmetric-identity-management-keysrs)
   - [AEAD ChaCha20-Poly1305 Symmetric Authenticated Encryption (`cipher_data.rs`)](#aead-chacha20-poly1305-symmetric-authenticated-encryption-cipher_datars)
     - [Payload Envelope Layout](#payload-envelope-layout)
   - [Handshake Protocol with Key Anonymization (`handshake.rs`)](#handshake-protocol-with-key-anonymization-handshakers)
 - [Demonstration and Validation Examples (`examples/`)](#demonstration-and-validation-examples-examples)
-  - [1. `examples/prueba.rs`: Comprehensive 25-Step Integration Suite](#1-examplespruebars-comprehensive-25-step-integration-suite)
+  - [1. `examples/prueba.rs`: Comprehensive Sequential Integration Suite](#1-examplespruebars-comprehensive-sequential-integration-suite)
   - [2. `examples/call_spoofing.rs`: Specialized Evasion PoC](#2-examplescall_spoofingrs-specialized-evasion-poc)
 - [Compilation, Optimization, and Laboratory Environments](#compilation-optimization-and-laboratory-environments)
   - [Optimization Profile in `Cargo.toml`](#optimization-profile-in-cargotoml)
@@ -108,27 +115,47 @@ One of the defining attributes of `zada-xor` is its **self-contained and autonom
 
 ## Repository Structure and Mapping
 
-The project architecture is organized into five modular subsystems under `src/`:
+The project architecture is organized into seven modular subsystems under `src/`:
 
 ```text
 zada-xor/
 ├── Cargo.toml                              # Compilation profile, dependencies, and release optimizations
 ├── comandos                                # Cross-compilation scripts and Wine execution helpers
+├── examples/                               # Validation and demonstration executable binaries
+│   ├── prueba.rs                           # Comprehensive sequential integration suite
+│   └── call_spoofing.rs                    # Specialized indirect syscall & call stack spoofing PoC
 ├── src/
 │   ├── lib.rs                              # Library root; re-export of public modules
 │   ├── utils.rs                            # Unaligned memory read primitives and Unicode string utilities
-│   ├── bin/                                # Validation and demonstration executable binaries
-│   │   ├── prueba.rs                       # Comprehensive 25-step sequential integration suite
-│   │   └── prueba_call_spoofing.rs         # Specialized indirect syscall & call stack spoofing PoC
 │   ├── cipher/                             # Cryptographic subsystem and secure channel protocol
 │   │   ├── mod.rs                          # Module export for cryptographic primitives
 │   │   ├── keys.rs                         # X25519 asymmetric identities and secret derivation
 │   │   ├── cipher_data.rs                  # ChaCha20-Poly1305 authenticated encryption engine
 │   │   ├── handshake.rs                    # Handshake protocol with public key anonymization
 │   │   └── communication.rs                # Encrypted session payload carrier
+│   ├── miscdll/                            # User-mode DLL integration without IAT imports
+│   │   ├── mod.rs                          # Export of miscellaneous DLL wrappers
+│   │   ├── kernel32/                       # User-mode Kernel32 primitives namespace
+│   │   │   └── mod.rs
+│   │   └── winhttp/                        # Modular WinHTTP API client with Call Stack Spoofing
+│   │       ├── mod.rs
+│   │       ├── win_http_open.rs            # WinHttpOpen session initialization
+│   │       ├── win_http_connect.rs         # WinHttpConnect server host & port binding
+│   │       ├── win_http_open_request.rs    # WinHttpOpenRequest handle creation with TLS flags
+│   │       ├── win_http_send_request.rs    # WinHttpSendRequest header and payload dispatch
+│   │       ├── win_http_receive_response.rs# WinHttpReceiveResponse server response synchronization
+│   │       ├── win_http_query_headers.rs   # WinHttpQueryHeaders status code & header introspection
+│   │       ├── win_http_read_data.rs       # WinHttpReadData chunked stream reception
+│   │       └── win_http_close_handle.rs    # WinHttpCloseHandle resource teardown
+│   ├── net/                                # Covert networking engine
+│   │   ├── mod.rs
+│   │   └── net_req_and_response.rs         # End-to-end HTTP/HTTPS client with RAII SafeHInternet
 │   ├── nt/                                 # Native Windows NT subsystem (Kernel & NTDLL)
 │   │   ├── mod.rs                          # NT kernel submodule declarations
-│   │   ├── types.rs                        # Base types, access masks, and NTSTATUS constants
+│   │   ├── types.rs                        # Base types, access masks, NTSTATUS, and unicode_string! macro
+│   │   ├── loader/                         # Native module loading through NTDLL
+│   │   │   ├── mod.rs
+│   │   │   └── ldr_load_dll.rs             # LdrLoadDll invocation with Call Stack Spoofing
 │   │   ├── process/                        # Native process operations
 │   │   │   ├── mod.rs
 │   │   │   ├── open_process.rs             # NtOpenProcess with CLIENT_ID and OBJECT_ATTRIBUTES
@@ -183,7 +210,8 @@ zada-xor/
 │           │   ├── dynamic_call.rs         # Stdcall and cdecl dynamic wrappers by name or hash
 │           │   ├── execute_poolparty_shellcode.rs # PoolParty execution technique via IOCP (NtSetIoCompletion)
 │           │   ├── indirect_syscall.rs     # Indirect syscalls (up to 8 args) with Call Stack Spoofing
-│           │   └── normal_call.rs          # Typed arity-based invocation of cdecl and stdcall pointers
+│           │   ├── normal_call.rs          # Typed arity-based invocation of cdecl and stdcall pointers
+│           │   └── user_mode_call.rs       # User-mode API dispatch (up to 8 args) with Call Stack Spoofing
 │           ├── memory/                     # Stealthy memory manipulation
 │           │   ├── mod.rs
 │           │   └── write_process_mem_rw_rx.rs # Process memory injection via RW -> RX transition cycle
@@ -308,8 +336,17 @@ Windows NT kernel linked lists are circular. To prevent infinite loops and deref
 
 The `src/nt/` module provides direct wrappers around native kernel system calls without intermediaries.
 
-### NT Kernel Types (`src/nt/types.rs`)
-Defines native primitive kernel types: `HANDLE`, `SIZE_T`, `ULONG`, `LONG`, `ACCESS_MASK`, `LARGE_INTEGER`, `GENERIC_MAPPING`, and the error status `STATUS_INFO_LENGTH_MISMATCH: i32 = -1073741820` (signed representation of `0xC0000004`).
+### NT Kernel Types and Compile-Time Macros (`src/nt/types.rs`)
+Defines native primitive kernel types: `HANDLE`, `SIZE_T`, `ULONG`, `LONG`, `ACCESS_MASK`, `LARGE_INTEGER`, `GENERIC_MAPPING`, `BOOL`, `DWORD`, `DWORD_PTR`, `PWSTR`, `LPWSTR`, `PCWSTR`, `LPCWSTR`, `PVOID`, `LPVOID`, `LPCVOID`, `PULONG`, `LPDWORD`, `PHANDLE`, `PCUNICODE_STRING`, as well as specialized networking handles `HINTERNET` and `INTERNET_PORT`. Also defines error status constants such as `STATUS_INFO_LENGTH_MISMATCH: i32 = -1073741820` (signed representation of `0xC0000004`).
+
+#### Compile-Time `unicode_string!` Macro
+Native NT functions frequently require parameters formatted as `UNICODE_STRING` (`Length`, `MaximumLength`, and a 16-bit wide character pointer `Buffer`). Allocating wide strings dynamically at runtime creates avoidable heap activity and telemetry.
+`zada-xor` provides the `unicode_string!` macro, which synthesizes static UTF-16 null-terminated arrays inside the `.rdata` PE section at compile time:
+
+```rust
+let dll_name = unicode_string!("WinHttp.dll");
+// dll_name is a zero-allocation UNICODE_STRING pointing to a static [u16; 12] in .rdata
+```
 
 ### Process Management (`src/nt/process/`)
 
@@ -378,6 +415,18 @@ Defines native primitive kernel types: `HANDLE`, `SIZE_T`, `ULONG`, `LONG`, `ACC
 - `pdata_pattern_find_starting_at_rand_func`: Iterates over the total set of functions in `.pdata`, selects a randomized initial index using `rand_core::OsRng`, and traverses DLL functions circularly. This technique avoids linear, sequential scanning patterns that trigger telemetry alerts.
 - `find_pattern_in_specific_func`: Constrains byte searches to the exact bounds of a function identified by its RVA (utilized to locate the `syscall; ret` gadget).
 
+### Native Module Loading (`src/nt/loader/`)
+
+#### `ldr_load_dll.rs`
+- **API Hash:** `0x5338cf9d` (`LdrLoadDll`).
+- **Low-Level DLL Ingestion:** Rather than invoking Win32 user-mode APIs like `LoadLibraryA` or `LoadLibraryExW`—which are systematically intercepted and inspected by user-mode EDR hooks in `kernel32.dll` / `kernelbase.dll`—this module executes `ntdll!LdrLoadDll` directly.
+- **Parameters:** Accepts `dll_path: PCWSTR`, `dll_characteristics: PULONG`, `dll_name: PCUNICODE_STRING`, and `dll_handle: PHANDLE`.
+- **Evasion Coupling:** The function dispatches through `user_mode_call_with_spoof`, ensuring that the loading request executes under a synthesized legitimate call stack rooted in `RtlUserThreadStart` and `BaseThreadInitThunk`.
+
+> [!TIP]
+> **Operational Note on Module Loading:**
+> While loading a DLL into an active process via `LdrLoadDll` bypasses Win32-level hooks, the kernel still generates an image load event (`PsSetLoadImageNotifyRoutine` / ETW Microsoft-Windows-Kernel-Process). For maximum operational stealth in production environments, operators can locate a legitimate process that already hosts the target module (such as `winhttp.dll`) and interact with it or inject into it without triggering new module load telemetries.
+
 ---
 
 ## Evasion and Discovery Techniques (`src/techniques/`)
@@ -408,6 +457,16 @@ pub fn unique_hash(name: &str) -> u32 {
 |---|---|
 | `"ntdll.dll"` (lowercase) | `0x68861c6f` |
 | `"kernel32.dll"` (lowercase) | `0xd32210ae` |
+| `"winhttp.dll"` (lowercase) | `0x00fce3fe` |
+| `"LdrLoadDll"` | `0x5338cf9d` |
+| `"WinHttpOpen"` | `0x8af2f4a8` |
+| `"WinHttpConnect"` | `0x88136834` |
+| `"WinHttpOpenRequest"` | `0x98c52c1e` |
+| `"WinHttpSendRequest"` | `0x9985ccdf` |
+| `"WinHttpReceiveResponse"` | `0x21b35fd7` |
+| `"WinHttpQueryHeaders"` | `0x8ea10460` |
+| `"WinHttpReadData"` | `0x9410ef50` |
+| `"WinHttpCloseHandle"` | `0xefee278c` |
 | `"NtOpenProcess"` | `0xaddc1c2e` |
 | `"NtQueryInformationProcess"` | `0x6fa0c1f4` |
 | `"NtQueryObject"` | `0xfc2a599c` |
@@ -425,6 +484,7 @@ pub fn unique_hash(name: &str) -> u32 {
 ### Dynamic API Resolution (`src/techniques/evasion/dinamic_api_resolution.rs`)
 Enables resolving modules and functions in memory without interacting with the IAT:
 - `get_ntdll_base()` and `get_kernel32_base()`: Traverse `InLoadOrderModuleList` from the PEB and match hashes against lowercase module names.
+- `get_winhttp_base()`: Traverses `InLoadOrderModuleList` to resolve `WinHttp.dll` base via hash `0xfce3fe`.
 - `get_dll_base_by_hash(hash: u32)`: Locates any loaded DLL using its FNV-1a/ROR hash.
 - `get_export_by_name` and `get_export_by_name_hash`: Parse the target module's export table to recover the function's virtual address.
 
@@ -546,6 +606,23 @@ Using `prepare_gadget_spoof_data`, two gadgets are resolved within legitimate NT
 
 *Note on Simulated Return Addresses:* Offsets `+0x21` for `RtlUserThreadStart` and `+0x14` for `BaseThreadInitThunk` are intentionally introduced. If return addresses pointed to offset 0 of those functions, security monitors would instantly identify the forgery, since a real `CALL` instruction never returns to the beginning of an enclosing function.
 
+### User-Mode Invocations with Call Stack Spoofing (`user_mode_call.rs`)
+
+While Indirect Syscalls protect Ring 3 $\rightarrow$ Ring 0 transitions, many offensive and defensive workflows require executing standard user-mode functions residing in loaded Windows DLLs (e.g. `ntdll!LdrLoadDll`, `winhttp!WinHttpOpen`, `winhttp!WinHttpSendRequest`). Calling these APIs directly from unbacked memory regions or without a legitimate call hierarchy causes user-space hooks or thread-stack profiling monitors to flag anomalous call chains.
+
+The `user_mode_call_with_spoof` module generalizes the synthetic call stack spoofing engine to arbitrary exported user-mode procedures (up to 8 parameters):
+
+1. **Dynamic Export Resolution:** Finds the function target in memory using its module base and API hash via `get_export_by_name_hash`.
+2. **Dynamic Unwind Synthesis:** Initializes `SpoofData` through `prepare_spoof_data()`, computing legitimate frame sizes for `RtlUserThreadStart`, `BaseThreadInitThunk`, Gadget 1 (`ADD RSP, 0x38; RET`), Gadget 2 (`CALL <AnchorReg>`), and the terminating `0x0` null address.
+3. **Parameter Routing:**
+   - Arguments 1 to 4 (`a1`..`a4`) are mapped to standard Microsoft x64 calling convention registers (`RCX`, `RDX`, `R8`, `R9`).
+   - Arguments 5 to 8 (`a5`..`a8`) are placed at offsets `[RSP + 0x28]`, `[RSP + 0x30]`, `[RSP + 0x38]`, and `[RSP + 0x40]` above the shadow space.
+4. **Anchor Register Preservation and Unconditional Jump:**
+   - Moves the original `RSP` into a preserved non-volatile register (`R12` or `RDI`).
+   - Calculates the dynamic anchor address (`lea <anchor_reg>, [rip + 2f]`).
+   - Issues an unconditional jump: `jmp {api_address}` directly into the target DLL export.
+5. **Execution Re-Entry:** When the user-mode function returns, it executes `RET` and lands on Gadget 1, which adjusts the stack and returns to Gadget 2 (`CALL <AnchorReg>`), returning execution to local label `2:`. Original stack pointers are cleanly restored, completely masking the origin of the execution flow from any thread inspection.
+
 ---
 
 ## Complementary Invocation and Memory Techniques
@@ -570,6 +647,55 @@ Enumerates active processes without relying on high-level APIs (`CreateToolhelp3
 3. Checks for `STATUS_INFO_LENGTH_MISMATCH` (`0xC0000004`), dynamically allocates native heap memory (`std::alloc::alloc`) with an 8 KB buffer margin (`+ 0x2000`) to absorb concurrently created processes, and executes a second call to populate process data.
 4. Parses `SystemProcessInformation` entries, extracting PID, PPID, thread counts, open handles, private working set size, and executable names (`image_name.to_string()`).
 5. `get_process_table()` renders process telemetry into a structured console table with Unicode box-drawing characters.
+
+---
+
+## User-Mode DLL Subsystem (`src/miscdll/`)
+
+In adherence to the zero-import architecture, interactions with user-mode Windows DLLs are encapsulated under `src/miscdll/`. Instead of statically linking import libraries (`.lib`) or declaring `extern "system"` blocks that populate the Import Directory, functions are resolved dynamically through PEB traversal and executed under Call Stack Spoofing.
+
+### WinHTTP Modular Subsystem (`src/miscdll/winhttp/`)
+
+Provides a complete, low-level wrapper suite for Windows HTTP Services (`winhttp.dll`):
+
+- **`win_http_open.rs` (Hash: `0x8af2f4a8`):** Initializes the WinHTTP session handle (`HINTERNET`). Supports proxy configuration (`WINHTTP_ACCESS_TYPE_DEFAULT_PROXY`, `WINHTTP_ACCESS_TYPE_NO_PROXY`, `WINHTTP_ACCESS_TYPE_NAMED_PROXY`) and asynchronous session flags.
+- **`win_http_connect.rs` (Hash: `0x88136834`):** Binds the session to a target host and TCP port (`INTERNET_DEFAULT_HTTP_PORT = 80`, `INTERNET_DEFAULT_HTTPS_PORT = 443`).
+- **`win_http_open_request.rs` (Hash: `0x98c52c1e`):** Allocates an HTTP request handle for a specified resource URI and HTTP verb. Configures TLS/HTTPS tunneling through `WINHTTP_FLAG_SECURE` (`0x00800000`) and proxy cache bypass options.
+- **`win_http_send_request.rs` (Hash: `0x9985ccdf`):** Dispatches the formatted request to the server, appending optional custom headers (`lpsz_headers`) and request body payloads (`lp_optional`).
+- **`win_http_receive_response.rs` (Hash: `0x21b35fd7`):** Blocks synchronously until the server responds and completes status/header reception.
+- **`win_http_query_headers.rs` (Hash: `0x8ea10460`):** Extracts HTTP response metadata, status codes (`WINHTTP_QUERY_STATUS_CODE = 19`), and raw headers.
+- **`win_http_read_data.rs` (Hash: `0x9410ef50`):** Reads stream payloads from the HTTP response into caller-allocated buffers.
+- **`win_http_close_handle.rs` (Hash: `0xefee278c`):** Releases active `HINTERNET` handles (session, connection, or request), preventing resource exhaustion in the host process.
+
+All WinHTTP wrappers route execution through `user_mode_call_with_spoof`, ensuring that socket operations and network callbacks present synthetic stacks rooted in legitimate Windows thread entry points.
+
+---
+
+## Covert Network Client Subsystem (`src/net/`)
+
+### End-to-End HTTP/HTTPS Client (`net_req_and_response.rs`)
+
+The `src/net/` module provides a high-level, production-grade network client implemented entirely on top of the spoofed WinHTTP primitives.
+
+```rust
+use zada_xor::net::net_req_and_response::net_req_and_response;
+
+let response_bytes = net_req_and_response(
+    "https://api.example.com",
+    "/v1/telemetry",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "POST",
+    Some(&[("Content-Type", "application/json"), ("X-Custom-Auth", "SecretToken")]),
+    Some(b"{\"status\":\"active\"}"),
+)?;
+```
+
+#### Core Operational Mechanics:
+1. **Dynamic Target Sanitization:** Automatically strips URL schemes (`http://`, `https://`), isolates domain names, parses custom ports (e.g. `"host.internal:8080"`), and defaults to port 443 (with `WINHTTP_FLAG_SECURE`) or port 80.
+2. **UTF-16 Zero-Terminated Conversion:** Helper `to_wide_str` dynamically encodes Rust UTF-8 strings into null-terminated UTF-16 wide strings for WinHTTP parameters.
+3. **RAII Safe Handle Guard (`SafeHInternet`):** Implements Rust's `Drop` trait over `HINTERNET` handles. If network transmission fails, times out, or returns prematurely, all allocated session, connection, and request handles are automatically and safely closed via `win_http_close_handle`.
+4. **Header and Payload Composition:** Formats optional HTTP header key-value pairs into standard `\r\n`-delimited wide character buffers and passes optional byte buffers directly to `win_http_send_request`.
+5. **Dynamic Chunked Streaming:** Streams server response payloads using an 8 KB chunk buffer loop (`[0u8; 8192]`) until `win_http_read_data` returns 0 bytes read, assembling the complete binary payload into a `Vec<u8>`.
 
 ---
 
@@ -644,7 +770,7 @@ To guarantee anonymity:
 
 The repository includes two standalone examples designed to validate all implemented modules. Run them via `cargo run --example <name>`:
 
-### 1. `examples/prueba.rs`: Comprehensive 25-Step Integration Suite
+### 1. `examples/prueba.rs`: Comprehensive Sequential Integration Suite
 
 ```bash
 cargo run --example prueba
@@ -652,31 +778,34 @@ cargo run --example prueba
 
 This binary sequentially runs a comprehensive end-to-end integration test:
 
-1. **Identification:** Displays current process PID via `std::process::id()`.
-2. **API Hashing:** Computes the FNV-1a hash of `"NtQueryObject"`, verifying the expected result `0xfc2a599c`.
-3. **Process Discovery:** Executes `get_process_table()`, invoking `NtQuerySystemInformation` via indirect syscall and rendering the process table.
-4. **Interaction:** Prompts the operator for a target PID for memory manipulation tests.
-5. **Process Handle Acquisition:** Calls `open_process` with access mask `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION` via indirect syscall `NtOpenProcess` (hash `0xaddc1c2e`).
-6. **Kernel Object Introspection:** Calls `query_object_size_solved` with `OBJECT_INFORMATION_CLASS::ObjectTypesInformation`, exercising dynamic buffer reallocation.
-7. **Handle Enumeration:** Executes `print_all_handles_info`, listing open handles and their granted permissions.
-8. **Stealth Memory Injection:** Executes `write_process_mem_rw_rx`, allocating memory in `PAGE_READWRITE`, writing `"RustInternals123"`, and changing protection to `PAGE_EXECUTE_READ`.
-9. **Manual PE Parsing:** Resolves `ntdll.dll` base via the PEB and parses PE headers using `PeHeaderInfo::parse_headers`.
-10. **Key Generation:** Instantiates `Identity` for client and server and synthesizes the handshake packet.
-11. **Hash Verification:** Prints precomputed hashes for system functions (`"RtlUserThreadStart"`, `"BaseThreadInitThunk"`, `"NtClose"`).
-12. **Initial Memory Mapping:** Executes `escanear_memoria_proceso`, displaying mapped `MEM_COMMIT` regions and their protection flags.
-13. **Read/Write Verification:** Reads injected memory via `nt_read_virtual_memory`, overwrites it with `"Terobolavariable"` via `nt_write_virtual_memory`, and reads back to verify modification.
-14. **RWX Modification:** Updates page protection to `ExecuteReadWrite` using `nt_protect_virtual_memory`.
-15. **Updated Memory Mapping:** Re-runs `escanear_memoria_proceso`, showing the region transitioned to `RWX`.
-16. **Handle Teardown:** Closes the process handle with `nt_close` via indirect syscall `NtClose` (hash `0x1c0fcdc4`).
-17. **Handshake Completion:** The server processes `SecureClientHandshakePacket`, decrypts the client key, and verifies equality of derived symmetric session keys.
-18. **Encrypted Data Channel:** Encrypts and decrypts a plaintext payload using `SecureDataPacket`.
-19. **Tampering Resistance Test:** Alters the first byte of ciphertext (`data_alterado[0] = 0`), confirming that Poly1305 detects tampering and halts decryption.
-20. **PEB Inspection:** Instantiates `Peb`, reads `GS`/`FS`, detects the OS build, and displays critical fields (`ImageBaseAddress`, `BeingDebugged`, `NtGlobalFlag`, etc.).
-21. **LDR Traversal:** Iterates `InLoadOrderModuleList` via `ListIter`, displaying loaded DLLs, base addresses, and image sizes.
-22. **NTDLL Export Parsing:** Parses `ntdll.dll`'s export table and resolves `"strcpy"` by hash (`0x097c4468`).
-23. **Stdcall Dynamic Invocation:** Suspends thread execution for 3 seconds using `dynamic_stdcall_by_name("NtDelayExecution", ...)`.
-24. **Cdecl Dynamic Invocation:** Invokes `"strcpy"` in memory using `dynamic_cdecl_by_name`.
-25. **Syscall Comparison:**
+1. **Native Dynamic Loading (`LdrLoadDll`):** Prepares a static `UNICODE_STRING` using `unicode_string!("WinHttp.dll")` and loads the library through `ldr_load_dll` with Call Stack Spoofing, bypassing `kernel32!LoadLibraryA`.
+2. **Covert HTTPS Network Request:** Dispatches a live GET request to `"www.google.com"` using `net_req_and_response`, receiving binary payload data and printing a preview of the response.
+3. **PEB Module & Hash Resolution:** Resolves `WinHttp.dll` base address dynamically from `InLoadOrderModuleList` via `get_winhttp_base()`, and computes/prints hashes for all WinHTTP entry points (`WinHttpOpen`, `WinHttpConnect`, `WinHttpOpenRequest`, `WinHttpSendRequest`, `WinHttpReceiveResponse`, `WinHttpQueryHeaders`, `WinHttpCloseHandle`, `WinHttpReadData`).
+4. **Identification:** Displays current process PID via `std::process::id()`.
+5. **API Hashing:** Computes the FNV-1a hash of `"NtQueryObject"`, verifying the expected result `0xfc2a599c`.
+6. **Process Discovery:** Executes `get_process_table()`, invoking `NtQuerySystemInformation` via indirect syscall and rendering the process table.
+7. **Interaction:** Prompts the operator for a target PID for memory manipulation tests.
+8. **Process Handle Acquisition:** Calls `open_process` with access mask `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION` via indirect syscall `NtOpenProcess` (hash `0xaddc1c2e`).
+9. **Kernel Object Introspection:** Calls `query_object_size_solved` with `OBJECT_INFORMATION_CLASS::ObjectTypesInformation`, exercising dynamic buffer reallocation.
+10. **Handle Enumeration:** Executes `print_all_handles_info`, listing open handles and their granted permissions.
+11. **Stealth Memory Injection:** Executes `write_process_mem_rw_rx`, allocating memory in `PAGE_READWRITE`, writing `"RustInternals123"`, and changing protection to `PAGE_EXECUTE_READ`.
+12. **Manual PE Parsing:** Resolves `ntdll.dll` base via the PEB and parses PE headers using `PeHeaderInfo::parse_headers`.
+13. **Key Generation:** Instantiates `Identity` for client and server and synthesizes the handshake packet.
+14. **Hash Verification:** Prints precomputed hashes for system functions (`"RtlUserThreadStart"`, `"BaseThreadInitThunk"`, `"NtClose"`).
+15. **Initial Memory Mapping:** Executes `escanear_memoria_proceso`, displaying mapped `MEM_COMMIT` regions and their protection flags.
+16. **Read/Write Verification:** Reads injected memory via `nt_read_virtual_memory`, overwrites it with `"Terobolavariable"` via `nt_write_virtual_memory`, and reads back to verify modification.
+17. **RWX Modification:** Updates page protection to `ExecuteReadWrite` using `nt_protect_virtual_memory`.
+18. **Updated Memory Mapping:** Re-runs `escanear_memoria_proceso`, showing the region transitioned to `RWX`.
+19. **Handle Teardown:** Closes the process handle with `nt_close` via indirect syscall `NtClose` (hash `0x1c0fcdc4`).
+20. **Handshake Completion:** The server processes `SecureClientHandshakePacket`, decrypts the client key, and verifies equality of derived symmetric session keys.
+21. **Encrypted Data Channel:** Encrypts and decrypts a plaintext payload using `SecureDataPacket`.
+22. **Tampering Resistance Test:** Alters the first byte of ciphertext (`data_alterado[0] = 0`), confirming that Poly1305 detects tampering and halts decryption.
+23. **PEB Inspection:** Instantiates `Peb`, reads `GS`/`FS`, detects the OS build, and displays critical fields (`ImageBaseAddress`, `BeingDebugged`, `NtGlobalFlag`, etc.).
+24. **LDR Traversal:** Iterates `InLoadOrderModuleList` via `ListIter`, displaying loaded DLLs, base addresses, and image sizes.
+25. **NTDLL Export Parsing:** Parses `ntdll.dll`'s export table and resolves `"strcpy"` by hash (`0x097c4468`).
+26. **Stdcall Dynamic Invocation:** Suspends thread execution for 3 seconds using `dynamic_stdcall_by_name("NtDelayExecution", ...)`.
+27. **Cdecl Dynamic Invocation:** Invokes `"strcpy"` in memory using `dynamic_cdecl_by_name`.
+28. **Syscall Comparison:**
     - Executes `direct_syscall_6` with hardcoded SSN (`0x0034`) to pause the thread.
     - Dynamically extracts `NtDelayExecution`'s SSN via `get_dinamic_ssn`.
     - Dispatches `indirect_syscall_6` using the dynamic SSN combined with Call Stack Spoofing, spoofing the call stack with NTDLL `.pdata` frames.
@@ -756,7 +885,8 @@ WINEPREFIX=~/.wine32 WINEARCH=win32 wine target/i686-pc-windows-gnu/release/prue
 |---|---|---|---|
 | **Root** | `src/lib.rs` | Public module declarations | Crate modular structure |
 | **Utilities** | `src/utils.rs` | `read_u8`, `read_u16`, `read_u32`, `read_ptr`, `UnicodeString` | Unaligned memory access and UTF-16 to UTF-8 conversion |
-| **NT Types** | `src/nt/types.rs` | `HANDLE`, `LARGE_INTEGER`, `STATUS_INFO_LENGTH_MISMATCH` | Native NT kernel primitive type definitions |
+| **NT Types** | `src/nt/types.rs` | `HANDLE`, `LARGE_INTEGER`, `STATUS_INFO_LENGTH_MISMATCH`, `unicode_string!`, `HINTERNET` | Native NT kernel types, Win32 primitives, and compile-time static string macro |
+| **NT Loader** | `src/nt/loader/ldr_load_dll.rs` | `ldr_load_dll` | Native module loading via `ntdll!LdrLoadDll` (0x5338cf9d) with Call Stack Spoofing |
 | **NT Process** | `src/nt/process/open_process.rs` | `open_process`, `DESIRED_ACCESS`, `CLIENT_ID`, `OBJECT_ATTRIBUTES` | Native process opening via `NtOpenProcess` (0xaddc1c2e) |
 | **NT Process** | `src/nt/process/query_information_process.rs` | `query_information_process`, `print_all_handles_info` | Handle enumeration via `NtQueryInformationProcess` (0x6fa0c1f4) |
 | **Kernel Objects** | `src/nt/kernel_objects/close.rs` | `nt_close` | Kernel handle teardown via `NtClose` (0x1c0fcdc4) |
@@ -781,7 +911,7 @@ WINEPREFIX=~/.wine32 WINEARCH=win32 wine target/i686-pc-windows-gnu/release/prue
 | **PEB Offsets** | `src/structures/peb/offsets/` | `peb_x64.rs`, `peb_x86.rs` | Exhaustive offset lookup tables by kernel version |
 | **Discovery** | `src/techniques/discovery/process.rs` | `process_discovery`, `get_process_table` | Process enumeration via `NtQuerySystemInformation` with table rendering |
 | **Evasion Hashing** | `src/techniques/evasion/api_hashing.rs` | `unique_hash` | Modified FNV-1a with ROR-7 and XOR mask for string obfuscation |
-| **API Resolution** | `src/techniques/evasion/dinamic_api_resolution.rs` | `get_ntdll_base`, `get_export_by_name_hash` | PEB module discovery and EAT export search without Windows APIs |
+| **API Resolution** | `src/techniques/evasion/dinamic_api_resolution.rs` | `get_ntdll_base`, `get_winhttp_base`, `get_export_by_name_hash` | PEB module discovery (`ntdll`, `kernel32`, `winhttp`) and EAT export search without Windows APIs |
 | **SSN Opcodes** | `src/techniques/evasion/syscall_opcodes.rs` | Windows 10 x64 SSN constants | Reference catalog for static validation of system services |
 | **Dynamic SSN** | `src/techniques/evasion/execution/dinamic_ssn.rs` | `get_dinamic_ssn` | Runtime SSN extraction in NTDLL and hook detection (INT3 / NOP) |
 | **Direct Syscalls** | `src/techniques/evasion/execution/direct_syscall.rs` | `direct_syscall_6` | Direct inline assembly invocation (`syscall` / `sysenter`) |
@@ -789,14 +919,17 @@ WINEPREFIX=~/.wine32 WINEARCH=win32 wine target/i686-pc-windows-gnu/release/prue
 | **Dynamic Invocation** | `src/techniques/evasion/execution/dynamic_call.rs` | `dynamic_stdcall_by_name`, `dynamic_cdecl_by_name` | NTDLL function invocation wrappers by name or hash |
 | **Normal Calls** | `src/techniques/evasion/execution/normal_call.rs` | `call_cdecl`, `call_stdcall` | Arity-based call dispatcher (0 to 10 args) adapted for x86 and x64 |
 | **Indirect Syscalls** | `src/techniques/evasion/execution/indirect_syscall.rs` | `indirect_syscall_6` | Indirect dispatch (up to 8 args) to `syscall; ret` gadget in NTDLL with stack spoofing |
+| **User-Mode Invocation** | `src/techniques/evasion/execution/user_mode_call.rs` | `user_mode_call_with_spoof` | Universal user-mode DLL function execution (up to 8 args) with synthetic Call Stack Spoofing |
 | **Synthetic Stack** | `src/techniques/evasion/stack_spoofing/call_stack_spoofing.rs` | `prepare_spoof_data`, `SpoofData` | Synthetic frame assembly with `RtlUserThreadStart`, `BaseThreadInitThunk`, and gadgets |
 | **Unwind Info** | `src/techniques/evasion/stack_spoofing/unwind_info.rs` | `get_unwind_offsets`, `parse_pdata_entry` | `.pdata` directory decoding and x64 `UNWIND_INFO` opcode parsing |
 | **Evasion Memory** | `src/techniques/evasion/memory/write_process_mem_rw_rx.rs` | `write_process_mem_rw_rx` | Remote memory injection via RW $\rightarrow$ RX transition cycle |
+| **WinHTTP Integration** | `src/miscdll/winhttp/` | `win_http_open`, `win_http_connect`, `win_http_open_request`, `win_http_send_request`, `win_http_receive_response`, `win_http_query_headers`, `win_http_read_data`, `win_http_close_handle` | Zero-IAT WinHTTP API suite executing with Call Stack Spoofing |
+| **Covert Networking** | `src/net/net_req_and_response.rs` | `net_req_and_response`, `SafeHInternet` | High-level HTTP/HTTPS client with auto TLS, custom headers/body, RAII handle safety, and chunked read |
 | **Crypto Keys** | `src/cipher/keys.rs` | `Identity`, `SymetricKey` | X25519 key generation and Diffie-Hellman shared secret derivation |
 | **Crypto AEAD** | `src/cipher/cipher_data.rs` | `CipherData::cipher`, `CipherData::decipher` | ChaCha20-Poly1305 authenticated encryption and decryption (28B overhead) |
 | **Crypto Handshake** | `src/cipher/handshake.rs` | `SecureClientHandshakePacket` | Handshake with client static public key anonymization (92B) |
 | **Crypto Session** | `src/cipher/communication.rs` | `SecureDataPacket` | Encrypted message envelope for operational session data |
-| **Binary Suite** | `examples/prueba.rs` | Sequential 25-step execution | Full end-to-end integration and demonstration suite |
+| **Binary Suite** | `examples/prueba.rs` | Sequential 28-step execution | Full end-to-end integration and demonstration suite (WinHttp, LdrLoadDll, Net, NT, Crypto) |
 | **Binary Spoofing** | `examples/call_spoofing.rs` | Isolated 60-second PoC | Thread suspension with `NtDelayExecution` via indirect syscall & stack spoofing |
 
 ---

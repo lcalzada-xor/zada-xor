@@ -14,13 +14,27 @@ pub type USHORT = u16;
 pub type UCHAR = u8;
 pub type CHAR = i8;
 pub type BOOLEAN = u8;
+pub type BOOL = i32;
+pub type DWORD = u32;
+pub type DWORD_PTR = usize;
 pub type PWSTR = *mut u16;
+pub type LPWSTR = *mut u16;
 pub type NTSTATUS = i32;
+pub type PCWSTR = *const u16;
+pub type LPCWSTR = *const u16;
 
 //Punteros
 pub type PVOID = *mut c_void;
+pub type LPVOID = *mut c_void;
+pub type LPCVOID = *const c_void;
 pub type PULONG = *mut u32;
+pub type LPDWORD = *mut u32;
 pub type PHANDLE = *mut HANDLE;
+pub type PCUNICODE_STRING = *const UNICODE_STRING;
+
+// WinHTTP
+pub type HINTERNET = *mut c_void;
+pub type INTERNET_PORT = u16;
 
 
 //ERRORES NT
@@ -57,7 +71,31 @@ impl Default for UNICODE_STRING {
         }
     }
 }
+#[macro_export]
+macro_rules! unicode_string {
+    ($s:expr) => {{
+        const S: &str = $s;
+        const LEN: usize = S.len();
+        // Se genera un array estático en tiempo de compilación en .rdata
+        static WSTR: [u16; LEN + 1] = {
+            let bytes = S.as_bytes();
+            let mut buf = [0u16; LEN + 1];
+            let mut i = 0;
+            while i < LEN {
+                buf[i] = bytes[i] as u16;
+                i += 1;
+            }
+            buf[LEN] = 0;
+            buf
+        };
 
+        $crate::nt::types::UNICODE_STRING {
+            Length: (LEN * 2) as u16,
+            MaximumLength: ((LEN + 1) * 2) as u16,
+            Buffer: WSTR.as_ptr() as *mut u16,
+        }
+    }};
+}
 /**
  * The GENERIC_MAPPING structure defines the mapping of generic access rights
  * to specific and standard access rights for an object.
