@@ -4,3 +4,4 @@ pub mod execution;
 pub mod stack_spoofing;
 pub mod syscall_opcodes;
 pub mod memory;
+pub mod process_inyection;

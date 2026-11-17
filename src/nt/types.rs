@@ -22,6 +22,7 @@ pub type LPWSTR = *mut u16;
 pub type NTSTATUS = i32;
 pub type PCWSTR = *const u16;
 pub type LPCWSTR = *const u16;
+pub type HRESULT = i32;
 
 //Punteros
 pub type PVOID = *mut c_void;
@@ -35,6 +36,22 @@ pub type PCUNICODE_STRING = *const UNICODE_STRING;
 // WinHTTP
 pub type HINTERNET = *mut c_void;
 pub type INTERNET_PORT = u16;
+
+// COM / OLE
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub struct GUID {
+    pub Data1: u32,
+    pub Data2: u16,
+    pub Data3: u16,
+    pub Data4: [u8; 8],
+}
+
+pub type CLSID = GUID;
+pub type IID = GUID;
+pub type REFCLSID = *const IID;
+pub type REFIID = *const IID;
+pub type LPUNKNOWN = *mut c_void;
 
 
 //ERRORES NT
@@ -69,6 +86,36 @@ impl Default for UNICODE_STRING {
             MaximumLength: 0,
             Buffer: std::ptr::null_mut(),
         }
+    }
+}
+
+impl UNICODE_STRING {
+    pub fn is_empty(&self) -> bool {
+        self.Length == 0 || self.Buffer.is_null()
+    }
+
+    pub fn as_slice(&self) -> &[u16] {
+        if self.Buffer.is_null() || self.Length == 0 {
+            &[]
+        } else {
+            unsafe {
+                std::slice::from_raw_parts(self.Buffer, (self.Length / 2) as usize)
+            }
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        String::from_utf16_lossy(self.as_slice())
+    }
+
+    pub fn as_string(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl std::fmt::Display for UNICODE_STRING {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 #[macro_export]

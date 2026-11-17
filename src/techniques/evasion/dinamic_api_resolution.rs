@@ -91,6 +91,31 @@ pub unsafe fn get_winhttp_base() -> Result<*const u8, &'static str> {
         Err("WinHttp.dll Module not found")
     }
 }
+pub unsafe fn get_ole32_base() -> Result<*const u8, &'static str> {
+    unsafe {
+        let peb = Peb::new().unwrap();
+        let ldr_ptr = peb.ldr();
+
+        let head = ListEntry::new(ldr_ptr.add(IN_LOAD_ORDER_MODULE_LIST));
+
+        for (_i, node) in head.iter().enumerate() {
+            let entry_ptr = ListEntry::new(node).containing_record(ldr_off::IN_LOAD_ORDER_LINKS);
+            let entry = LdrDataTableEntry::new(entry_ptr);
+
+            if unique_hash(
+                &entry
+                    .base_dll_name()
+                    .expect("Full DLL name not found")
+                    .to_lowercase(),
+            ) == 0xaa0a2d31
+            {
+                return Ok(entry.dll_base());
+            }
+        }
+
+        Err("WinHttp.dll Module not found")
+    }
+}
 
 pub unsafe fn get_dll_base_by_hash(hash: u32) -> Result<*const u8, &'static str> {
     unsafe {

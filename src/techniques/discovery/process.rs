@@ -151,11 +151,6 @@ pub fn process_discovery() -> Result<Vec<ProcessInfo>, String> {
     };
 
     if status as u32 != 0xC0000004 {
-        #[cfg(debug_assertions)]
-        println!(
-            "[Debug] Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
-            status
-        );
         return Err(format!(
             "Se esperaba LENGTH_MISMATCH, pero se obtuvo: 0x{:X}",
             status

